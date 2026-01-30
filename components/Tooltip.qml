@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, The Monero Project
+// Copyright (c) 2021-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -31,7 +31,7 @@ import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.1
 
 import FontAwesome 1.0
-import "." as MoneroComponents
+import "." as ZedcoinComponents
 
 Rectangle {
     property alias text: tooltip.text
@@ -48,7 +48,7 @@ Rectangle {
     Text {
         id: icon
         visible: tooltipIconVisible
-        color: MoneroComponents.Style.defaultFontColor
+        color: ZedcoinComponents.Style.defaultFontColor
         font.family: FontAwesome.fontFamily
         font.pixelSize: 10
         font.styleName: "Regular"
@@ -72,9 +72,9 @@ Rectangle {
         height: tooltip.height + 20
 
         background: Rectangle {
-            border.color: MoneroComponents.Style.buttonInlineBackgroundColor
+            border.color: ZedcoinComponents.Style.buttonInlineBackgroundColor
             border.width: 1
-            color: MoneroComponents.Style.titleBarBackgroundGradientStart
+            color: ZedcoinComponents.Style.titleBarBackgroundGradientStart
             radius: 4
         }
         closePolicy: Popup.NoAutoClose
@@ -101,8 +101,8 @@ Rectangle {
                 id: tooltip
                 width: contentWidth
                 Layout.maximumWidth: 370
-                color: MoneroComponents.Style.defaultFontColor
-                font.family: MoneroComponents.Style.fontRegular.name
+                color: ZedcoinComponents.Style.defaultFontColor
+                font.family: ZedcoinComponents.Style.fontRegular.name
                 font.pixelSize: 12
                 textFormat: Text.RichText
                 wrapMode: Text.WordWrap

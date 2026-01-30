@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -26,7 +26,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 import QtQuick 2.9
 import QtQuick.Layouts 1.2
@@ -85,7 +85,7 @@ Rectangle {
                     wizardController.wizardStateView.wizardRestoreWallet2View.pwConfirmField = "";
                     wizardController.recoveryWallet();
                     wizardController.writeWallet(function() {
-                        wizardController.useMoneroClicked();
+                        wizardController.useZedcoinClicked();
                         btnNext.enabled = true;
                     });
                 }

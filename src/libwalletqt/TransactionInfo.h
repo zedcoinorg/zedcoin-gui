@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -63,8 +63,8 @@ class TransactionInfo : public QObject
 
 public:
     enum Direction {
-        Direction_In  =  Monero::TransactionInfo::Direction_In,
-        Direction_Out =  Monero::TransactionInfo::Direction_Out,
+        Direction_In  =  Zedcoin::TransactionInfo::Direction_In,
+        Direction_Out =  Zedcoin::TransactionInfo::Direction_Out,
         Direction_Both // invalid direction value, used for filtering
     };
 
@@ -95,7 +95,7 @@ public:
     //! used in tx details popup
     QString destinations_formatted() const;
 private:
-    explicit TransactionInfo(const Monero::TransactionInfo *pimpl, QObject *parent = 0);
+    explicit TransactionInfo(const Zedcoin::TransactionInfo *pimpl, QObject *parent = 0);
 private:
     friend class TransactionHistory;
     mutable QList<Transfer*> m_transfers;

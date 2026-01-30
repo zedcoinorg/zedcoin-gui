@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -58,7 +58,7 @@ class PassphraseHelper {
 public:
     PassphraseHelper(PassprasePrompter * prompter=nullptr): m_prompter(prompter) {};
     PassphraseHelper(const PassphraseHelper & h): PassphraseHelper(h.m_prompter) {};
-    Monero::optional<std::string> onDevicePassphraseRequest(bool & on_device);
+    Zedcoin::optional<std::string> onDevicePassphraseRequest(bool & on_device);
     void onPassphraseEntered(const QString &passphrase, bool enter_on_device, bool entry_abort);
 
 private:

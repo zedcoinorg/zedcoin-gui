@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -32,14 +32,14 @@ import QtGraphicalEffects 1.0
 
 import FontAwesome 1.0
 
-import "." as MoneroComponents
-import "./effects/" as MoneroEffects
+import "." as ZedcoinComponents
+import "./effects/" as ZedcoinEffects
 
 Item {
     id: inlineButton
 
     property bool small: false
-    property string textColor: MoneroComponents.Style.inlineButtonTextColor
+    property string textColor: ZedcoinComponents.Style.inlineButtonTextColor
     property alias text: inlineText.text
     property alias fontPixelSize: inlineText.font.pixelSize
     property alias fontFamily: inlineText.font.family
@@ -64,13 +64,13 @@ Item {
     Rectangle{
         id: rect
         anchors.fill: parent
-        color: buttonArea.containsMouse ? MoneroComponents.Style.buttonInlineBackgroundColorHover : MoneroComponents.Style.buttonInlineBackgroundColor
+        color: buttonArea.containsMouse ? ZedcoinComponents.Style.buttonInlineBackgroundColorHover : ZedcoinComponents.Style.buttonInlineBackgroundColor
         radius: 4
         border.width: parent.focus && parent.enabled ? 1 : 0
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: inlineText
-            font.family: MoneroComponents.Style.fontBold.name
+            font.family: ZedcoinComponents.Style.fontBold.name
             font.bold: true
             font.pixelSize: inlineButton.isFontAwesomeIcon ? 22 : inlineButton.small ? 14 : 16
             color: inlineButton.textColor
@@ -78,14 +78,14 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             themeTransition: false
 
-            MoneroEffects.ColorTransition {
+            ZedcoinEffects.ColorTransition {
                 targetObj: inlineText
-                blackColor: MoneroComponents.Style._b_inlineButtonTextColor
-                whiteColor: MoneroComponents.Style._w_inlineButtonTextColor
+                blackColor: ZedcoinComponents.Style._b_inlineButtonTextColor
+                whiteColor: ZedcoinComponents.Style._w_inlineButtonTextColor
             }
         }
 
-        MoneroComponents.Tooltip {
+        ZedcoinComponents.Tooltip {
             id: tooltip
             anchors.fill: parent
         }
@@ -109,7 +109,7 @@ Item {
     }
 
     DropShadow {
-        visible: !MoneroComponents.Style.blackTheme
+        visible: !ZedcoinComponents.Style.blackTheme
         anchors.fill: rect
         horizontalOffset: 2
         verticalOffset: 2

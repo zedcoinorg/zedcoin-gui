@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -31,8 +31,8 @@ import QtQuick.Layouts 1.1
 import QtQuick.Controls 2.0
 import FontAwesome 1.0
 
-import "../../components" as MoneroComponents
-import "../../components/effects" as MoneroEffects
+import "../../components" as ZedcoinComponents
+import "../../components/effects" as ZedcoinEffects
 
 Rectangle{
     color: "transparent"
@@ -64,8 +64,8 @@ Rectangle{
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 1
-                color: MoneroComponents.Style.dividerColor
-                opacity: MoneroComponents.Style.dividerOpacity
+                color: ZedcoinComponents.Style.dividerColor
+                opacity: ZedcoinComponents.Style.dividerOpacity
             }
 
             Rectangle {
@@ -93,25 +93,25 @@ Rectangle{
                     anchors.leftMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
 
-                    MoneroComponents.Label {
+                    ZedcoinComponents.Label {
                         fontSize: 32
                         text: FontAwesome.home
                         fontFamily: FontAwesome.fontFamilySolid
                         anchors.centerIn: parent
-                        fontColor: MoneroComponents.Style.defaultFontColor
+                        fontColor: ZedcoinComponents.Style.defaultFontColor
                         styleName: "Solid"
                     }
                 }
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     id: localNodeHeader
                     anchors.left: localNodeIcon.right
                     anchors.leftMargin: 14
                     anchors.top: parent.top
-                    color: MoneroComponents.Style.defaultFontColor
-                    opacity: MoneroComponents.Style.blackTheme ? 1.0 : 0.8
+                    color: ZedcoinComponents.Style.defaultFontColor
+                    opacity: ZedcoinComponents.Style.blackTheme ? 1.0 : 0.8
                     font.bold: true
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     font.pixelSize: 16
                     text: qsTr("Local node") + translationManager.emptyString
                 }
@@ -122,8 +122,8 @@ Rectangle{
                     anchors.topMargin: 4
                     anchors.left: localNodeIcon.right
                     anchors.leftMargin: 14
-                    color: MoneroComponents.Style.dimmedFontColor
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    color: ZedcoinComponents.Style.dimmedFontColor
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     font.pixelSize: 15
                     horizontalAlignment: TextInput.AlignLeft
                     wrapMode: Text.WordWrap;
@@ -157,8 +157,8 @@ Rectangle{
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 1
-                color: MoneroComponents.Style.dividerColor
-                opacity: MoneroComponents.Style.dividerOpacity
+                color: ZedcoinComponents.Style.dividerColor
+                opacity: ZedcoinComponents.Style.dividerOpacity
             }
 
             Rectangle {
@@ -186,25 +186,25 @@ Rectangle{
                     anchors.leftMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
 
-                    MoneroComponents.Label {
+                    ZedcoinComponents.Label {
                         fontSize: 28
                         text: FontAwesome.cloud
                         fontFamily: FontAwesome.fontFamilySolid
                         styleName: "Solid"
                         anchors.centerIn: parent
-                        fontColor: MoneroComponents.Style.defaultFontColor
+                        fontColor: ZedcoinComponents.Style.defaultFontColor
                     }
                 }
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     id: remoteNodeHeader
                     anchors.left: remoteNodeIcon.right
                     anchors.leftMargin: 14
                     anchors.top: parent.top
-                    color: MoneroComponents.Style.defaultFontColor
-                    opacity: MoneroComponents.Style.blackTheme ? 1.0 : 0.8
+                    color: ZedcoinComponents.Style.defaultFontColor
+                    opacity: ZedcoinComponents.Style.blackTheme ? 1.0 : 0.8
                     font.bold: true
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     font.pixelSize: 16
                     text: qsTr("Remote node") + translationManager.emptyString
                 }
@@ -215,14 +215,14 @@ Rectangle{
                     anchors.topMargin: 4
                     anchors.left: remoteNodeIcon.right
                     anchors.leftMargin: 14
-                    color: MoneroComponents.Style.dimmedFontColor
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    color: ZedcoinComponents.Style.dimmedFontColor
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     font.pixelSize: 15
                     horizontalAlignment: TextInput.AlignLeft
                     wrapMode: Text.WordWrap;
                     leftPadding: 0
                     topPadding: 0
-                    text: qsTr("Uses a third-party server to connect to the Monero network. Less secure, but easier on your computer.") + translationManager.emptyString
+                    text: qsTr("Uses a third-party server to connect to the Zedcoin network. Less secure, but easier on your computer.") + translationManager.emptyString
                     width: parent.width - (remoteNodeIcon.width + remoteNodeIcon.anchors.leftMargin + anchors.leftMargin)
                 }
 
@@ -244,18 +244,18 @@ Rectangle{
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 height: 1
-                color: MoneroComponents.Style.dividerColor
-                opacity: MoneroComponents.Style.dividerOpacity
+                color: ZedcoinComponents.Style.dividerColor
+                opacity: ZedcoinComponents.Style.dividerOpacity
             }
         }
 
-        MoneroComponents.WarningBox {
+        ZedcoinComponents.WarningBox {
             Layout.topMargin: 46
-            text: qsTr("To find a remote node, type 'Monero remote node' into your favorite search engine. Please ensure the node is run by a trusted third-party.") + translationManager.emptyString
+            text: qsTr("To find a remote node, type 'Zedcoin remote node' into your favorite search engine. Please ensure the node is run by a trusted third-party.") + translationManager.emptyString
             visible: persistentSettings.useRemoteNode
         }
 
-        MoneroComponents.RemoteNodeList {
+        ZedcoinComponents.RemoteNodeList {
             Layout.fillWidth: true
             Layout.topMargin: 26
             visible: persistentSettings.useRemoteNode
@@ -267,7 +267,7 @@ Rectangle{
             Layout.topMargin: 40
             visible: !persistentSettings.useRemoteNode
 
-            MoneroComponents.StandardButton {
+            ZedcoinComponents.StandardButton {
                 small: true
                 text: (appWindow.daemonRunning ? qsTr("Stop daemon") : qsTr("Start daemon")) + translationManager.emptyString
                 onClicked: {
@@ -281,13 +281,13 @@ Rectangle{
             }
 
             RowLayout {
-                MoneroComponents.LineEditMulti {
+                ZedcoinComponents.LineEditMulti {
                     id: blockchainFolder
                     Layout.preferredWidth: 200
                     Layout.fillWidth: true
                     fontSize: 15
                     labelFontSize: 14
-                    property string style: "<style type='text/css'>a {cursor:pointer;text-decoration: none; color: #FF6C3C}</style>"
+                    property string style: "<style type='text/css'>a {cursor:pointer;text-decoration: none; color: #FFD200}</style>"
                     labelText: qsTr("Blockchain location") + style + " <a href='#'> (%1)</a>".arg(qsTr("Change")) + translationManager.emptyString
                     labelButtonText: qsTr("Reset") + translationManager.emptyString
                     labelButtonVisible: text
@@ -308,7 +308,7 @@ Rectangle{
                 }
             }
 
-            MoneroComponents.LineEditMulti {
+            ZedcoinComponents.LineEditMulti {
                 id: daemonFlags
                 Layout.fillWidth: true
                 labelFontSize: 14
@@ -333,7 +333,7 @@ Rectangle{
                 ColumnLayout {
                     Layout.fillWidth: true
 
-                    MoneroComponents.RemoteNodeEdit {
+                    ZedcoinComponents.RemoteNodeEdit {
                         id: bootstrapNodeEdit
                         Layout.minimumWidth: 100
                         Layout.bottomMargin: 20
@@ -355,4 +355,3 @@ Rectangle{
         }
     }
 }
-

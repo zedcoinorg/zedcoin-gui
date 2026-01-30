@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -29,7 +29,7 @@
 import QtQuick 2.9
 import QtQuick.Window 2.1
 
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 Window {
     property alias text: content.text
@@ -49,7 +49,7 @@ Window {
         id: rect
         width: content.width + 12
         height: content.height + 17
-        color: "#FF6C3C"
+        color: "#FFD200"
         //radius: 3
 
         Image {
@@ -60,7 +60,7 @@ Window {
             source: "qrc:///images/tip.png"
         }
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: content
             anchors.horizontalCenter: parent.horizontalCenter
             y: 6

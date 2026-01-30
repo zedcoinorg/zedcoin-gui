@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -34,8 +34,8 @@ import QtQuick.Controls.Styles 1.4
 import QtQuick.Window 2.0
 import FontAwesome 1.0
 
-import "." as MoneroComponents
-import "effects/" as MoneroEffects
+import "." as ZedcoinComponents
+import "effects/" as ZedcoinEffects
 import "../js/Utils.js" as Utils
 
 FocusScope {
@@ -172,9 +172,9 @@ FocusScope {
                 Layout.fillWidth: true
 
                 font.pixelSize: 16
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
 
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
 
             Label {
@@ -184,17 +184,17 @@ FocusScope {
                 wrapMode: Text.Wrap
 
                 font.pixelSize: 14
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
 
-                color: MoneroComponents.Style.warningColor
+                color: ZedcoinComponents.Style.warningColor
             }
 
             Label {
                 id: errorTextLabel
                 visible: root.errorText || text !== ""
-                color: MoneroComponents.Style.errorColor
+                color: ZedcoinComponents.Style.errorColor
                 font.pixelSize: 16
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
             }
@@ -202,15 +202,15 @@ FocusScope {
             Label {
                 id: capsLockTextLabel
                 visible: false
-                color: MoneroComponents.Style.errorColor
+                color: ZedcoinComponents.Style.errorColor
                 font.pixelSize: 16
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 text: qsTr("CAPS LOCK IS ON.") + translationManager.emptyString;
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: passwordInput1
                 password: true
                 input.focus: root.visible && (appWindow.active || Qt.application.state === Qt.ApplicationActive)
@@ -247,12 +247,12 @@ FocusScope {
                 Layout.fillWidth: true
 
                 font.pixelSize: 16
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
 
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: passwordInput2
                 passwordLinked: passwordInput1
                 visible: !passwordDialogMode
@@ -284,7 +284,7 @@ FocusScope {
                 Layout.topMargin: 16
                 Layout.alignment: Qt.AlignRight
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: cancelButton
                     primary: false
                     small: true
@@ -293,7 +293,7 @@ FocusScope {
                     onClicked: onCancel()
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: okButton
                     fontAwesomeIcon: true
                     rightIcon: okButtonIcon
@@ -311,10 +311,10 @@ FocusScope {
                 Layout.fillWidth: true
 
                 font.pixelSize: 14
-                font.family: MoneroComponents.Style.fontLight.name
+                font.family: ZedcoinComponents.Style.fontLight.name
                 font.italic: true
 
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
         }
     }

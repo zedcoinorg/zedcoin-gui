@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -31,11 +31,11 @@ import QtQuick.Layouts 1.1
 import QtQuick.Controls 2.0
 import QtQuick.Dialogs 1.2
 
-import moneroComponents.Wallet 1.0
+import zedcoinComponents.Wallet 1.0
 
 import "../../js/Utils.js" as Utils
 import "../../js/Windows.js" as Windows
-import "../../components" as MoneroComponents
+import "../../components" as ZedcoinComponents
 
 Rectangle {
     color: "transparent"
@@ -53,14 +53,14 @@ Rectangle {
         anchors.topMargin: 0
         spacing: 6
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: customDecorationsCheckBox
             checked: persistentSettings.customDecorations
             onClicked: Windows.setCustomWindowDecorations(checked)
             text: qsTr("Custom decorations") + translationManager.emptyString
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: checkForUpdatesCheckBox
             enabled: !disableCheckUpdatesFlag
             checked: persistentSettings.checkForUpdates && !disableCheckUpdatesFlag
@@ -68,13 +68,13 @@ Rectangle {
             text: qsTr("Check for updates periodically") + translationManager.emptyString
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             checked: persistentSettings.displayWalletNameInTitleBar
             onClicked: persistentSettings.displayWalletNameInTitleBar = !persistentSettings.displayWalletNameInTitleBar
             text: qsTr("Display wallet name in title bar") + translationManager.emptyString
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: hideBalanceCheckBox
             checked: persistentSettings.hideBalance
             onClicked: {
@@ -84,17 +84,17 @@ Rectangle {
             text: qsTr("Hide balance") + translationManager.emptyString
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: themeCheckbox
-            checked: !MoneroComponents.Style.blackTheme
+            checked: !ZedcoinComponents.Style.blackTheme
             text: qsTr("Light theme") + translationManager.emptyString
             toggleOnClick: false
             onClicked: {
-                MoneroComponents.Style.blackTheme = !MoneroComponents.Style.blackTheme;
+                ZedcoinComponents.Style.blackTheme = !ZedcoinComponents.Style.blackTheme;
             }
         }
         
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             checked: persistentSettings.askPasswordBeforeSending
             text: qsTr("Ask for password before sending a transaction") + translationManager.emptyString
             toggleOnClick: false
@@ -115,13 +115,13 @@ Rectangle {
             }
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             checked: persistentSettings.autosave
             onClicked: persistentSettings.autosave = !persistentSettings.autosave
             text: qsTr("Autosave") + translationManager.emptyString
         }
 
-        MoneroComponents.Slider {
+        ZedcoinComponents.Slider {
             Layout.fillWidth: true
             Layout.leftMargin: 35
             Layout.topMargin: 6
@@ -134,14 +134,14 @@ Rectangle {
             onMoved: persistentSettings.autosaveMinutes = value
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: userInActivityCheckbox
             checked: persistentSettings.lockOnUserInActivity
             onClicked: persistentSettings.lockOnUserInActivity = !persistentSettings.lockOnUserInActivity
             text: qsTr("Lock wallet on inactivity") + translationManager.emptyString
         }
 
-        MoneroComponents.Slider {
+        ZedcoinComponents.Slider {
             visible: userInActivityCheckbox.checked
             Layout.fillWidth: true
             Layout.topMargin: 6
@@ -157,7 +157,7 @@ Rectangle {
             onMoved: persistentSettings.lockOnUserInActivityInterval = value
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: backgroundSyncCheckbox
             visible: !!currentWallet && !currentWallet.isHwBacked() && !appWindow.viewOnly
             checked: appWindow.backgroundSyncType != Wallet.BackgroundSync_Off
@@ -173,13 +173,13 @@ Rectangle {
                         newBackgroundSyncType = Wallet.BackgroundSync_ReusePassword
 
                     // TODO: don't keep the wallet password in memory on the appWindow
-                    // https://github.com/monero-project/monero-gui/issues/1537#issuecomment-410055329
+                    // https://github.com/zedcoin-project/zedcoin-gui/issues/1537#issuecomment-410055329
                     currentWallet.setupBackgroundSync(newBackgroundSyncType, appWindow.walletPassword)
                 }
             }
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             checked: persistentSettings.askStopLocalNode
             onClicked: persistentSettings.askStopLocalNode = !persistentSettings.askStopLocalNode
             text: qsTr("Ask to stop local node during program exit") + translationManager.emptyString
@@ -187,7 +187,7 @@ Rectangle {
 
         //! Manage pricing
         RowLayout {
-            MoneroComponents.CheckBox {
+            ZedcoinComponents.CheckBox {
                 id: enableConvertCurrency
                 text: qsTr("Enable displaying balance in other currencies") + translationManager.emptyString
                 checked: persistentSettings.fiatPriceEnabled
@@ -207,7 +207,7 @@ Rectangle {
             Layout.leftMargin: 36
             columnSpacing: 32
 
-            MoneroComponents.StandardDropdown {
+            ZedcoinComponents.StandardDropdown {
                 id: fiatPriceProviderDropDown
                 Layout.maximumWidth: 200
                 labelText: qsTr("Price source") + translationManager.emptyString
@@ -222,12 +222,12 @@ Rectangle {
                 }
             }
 
-            MoneroComponents.StandardDropdown {
+            ZedcoinComponents.StandardDropdown {
                 id: fiatPriceCurrencyDropdown
                 Layout.maximumWidth: 100
                 labelText: qsTr("Currency") + translationManager.emptyString
                 labelFontSize: 14
-                currentIndex: persistentSettings.fiatPriceCurrency === "xmrusd" ? 0 : 1
+                currentIndex: persistentSettings.fiatPriceCurrency === "zedusd" ? 0 : 1
                 dataModel: fiatPriceCurrencyModel
                 onChanged: {
                     var obj = dataModel.get(currentIndex);
@@ -248,11 +248,11 @@ Rectangle {
             Layout.topMargin: 5
             Layout.leftMargin: 36
 
-            MoneroComponents.WarningBox {
+            ZedcoinComponents.WarningBox {
                 text: qsTr("Enabling price conversion exposes your IP address to the selected price source.") + translationManager.emptyString;
             }
 
-            MoneroComponents.StandardButton {
+            ZedcoinComponents.StandardButton {
                 Layout.topMargin: 10
                 Layout.bottomMargin: 10
                 small: true
@@ -265,7 +265,7 @@ Rectangle {
             }
         }
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: proxyCheckbox
             Layout.topMargin: 6
             enabled: !socksProxyFlagSet
@@ -278,7 +278,7 @@ Rectangle {
                 .arg(qsTr("updates downloading, fetching price sources")) + translationManager.emptyString
         }
 
-        MoneroComponents.RemoteNodeEdit {
+        ZedcoinComponents.RemoteNodeEdit {
             id: proxyEdit
             enabled: proxyCheckbox.enabled
             Layout.leftMargin: 36
@@ -296,7 +296,7 @@ Rectangle {
             }
         }
 
-        MoneroComponents.StandardButton {
+        ZedcoinComponents.StandardButton {
             visible: !persistentSettings.customDecorations
             Layout.topMargin: 10
             small: true
@@ -315,11 +315,11 @@ Rectangle {
     ListModel {
         id: fiatPriceCurrencyModel
         ListElement {
-            data: "xmrusd"
+            data: "zedusd"
             column1: "USD"
         }
         ListElement {
-            data: "xmreur"
+            data: "zedeur"
             column1: "EUR"
         }
     }
@@ -344,4 +344,3 @@ Rectangle {
         console.log('SettingsLayout loaded');
     }
 }
-

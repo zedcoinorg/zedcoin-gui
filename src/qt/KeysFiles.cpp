@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -100,15 +100,15 @@ void WalletKeysFilesModel::clear()
     endResetModel();
 }
 
-void WalletKeysFilesModel::refresh(const QString &moneroAccountsDir)
+void WalletKeysFilesModel::refresh(const QString &zedcoinAccountsDir)
 {
     this->clear();
-    this->findWallets(moneroAccountsDir);
+    this->findWallets(zedcoinAccountsDir);
 }
 
-void WalletKeysFilesModel::findWallets(const QString &moneroAccountsDir)
+void WalletKeysFilesModel::findWallets(const QString &zedcoinAccountsDir)
 {
-    QDirIterator it(moneroAccountsDir, QDirIterator::Subdirectories);
+    QDirIterator it(zedcoinAccountsDir, QDirIterator::Subdirectories);
     while (it.hasNext())
     {
         it.next();

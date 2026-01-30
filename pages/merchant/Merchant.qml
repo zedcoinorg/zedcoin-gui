@@ -5,18 +5,18 @@ import QtGraphicalEffects 1.0
 import QtQuick.Controls.Styles 1.4
 import QtQuick.Dialogs 1.2
 
-import moneroComponents.Clipboard 1.0
-import moneroComponents.Wallet 1.0
-import moneroComponents.WalletManager 1.0
-import moneroComponents.TransactionHistory 1.0
-import moneroComponents.TransactionHistoryModel 1.0
-import moneroComponents.Subaddress 1.0
-import moneroComponents.SubaddressModel 1.0
+import zedcoinComponents.Clipboard 1.0
+import zedcoinComponents.Wallet 1.0
+import zedcoinComponents.WalletManager 1.0
+import zedcoinComponents.TransactionHistory 1.0
+import zedcoinComponents.TransactionHistoryModel 1.0
+import zedcoinComponents.Subaddress 1.0
+import zedcoinComponents.SubaddressModel 1.0
 
 import "../../js/Windows.js" as Windows
 import "../../js/TxUtils.js" as TxUtils
 import "../../js/Utils.js" as Utils
-import "../../components" as MoneroComponents
+import "../../components" as ZedcoinComponents
 import "../../pages"
 import "."
 
@@ -125,7 +125,7 @@ Item {
                                 Layout.preferredWidth: 10
                             }
 
-                            MoneroComponents.TextPlain {
+                            ZedcoinComponents.TextPlain {
                                 font.pixelSize: 16
                                 font.bold: true
                                 color: "#767676"
@@ -259,13 +259,13 @@ Item {
                 width: (parent.width - qrImg.width) - (50)
                 height: 32
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                     font.pixelSize: 12
                     font.bold: false
                     color: "white"
-                    text: "<style type='text/css'>a {text-decoration: none; color: #FF6C3C; font-size: 12px;}</style>%1: %2 <a href='#'>(%3)</a>"
+                    text: "<style type='text/css'>a {text-decoration: none; color: #FFD200; font-size: 12px;}</style>%1: %2 <a href='#'>(%3)</a>"
                         .arg(qsTr("Currently selected address"))
                         .arg(addressLabel)
                         .arg(qsTr("Change")) + translationManager.emptyString
@@ -287,7 +287,7 @@ Item {
                 width: 220
                 height: 32
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                     font.pixelSize: 12
@@ -333,7 +333,7 @@ Item {
                                 Layout.preferredWidth: 10
                             }
 
-                            MoneroComponents.TextPlain {
+                            ZedcoinComponents.TextPlain {
                                 font.pixelSize: 14
                                 font.bold: true
                                 color: "#767676"
@@ -354,7 +354,7 @@ Item {
 //                            Layout.fillHeight: true
 //                            color: "transparent"
 
-//                            MoneroComponents.TextPlain {
+//                            ZedcoinComponents.TextPlain {
 //                                anchors.verticalCenter: parent.verticalCenter
 //                                anchors.right: parent.right
 //                                anchors.rightMargin: 20
@@ -388,7 +388,7 @@ Item {
                         color: "#d9d9d9"
                     }
 
-                    MoneroComponents.TextPlain {
+                    ZedcoinComponents.TextPlain {
                         property string _color: "#767676"
                         Layout.fillWidth: true
                         Layout.margins: 20
@@ -408,7 +408,7 @@ Item {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onEntered: {
-                                parent.color = MoneroComponents.Style.orange
+                                parent.color = ZedcoinComponents.Style.orange
                             }
                             onExited: {
                                 parent.color = parent._color
@@ -445,11 +445,11 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
 
-                    MoneroComponents.TextPlain {
+                    ZedcoinComponents.TextPlain {
                         font.pixelSize: 14
                         font.bold: false
                         color: "white"
-                        text: qsTr("Amount to receive") + " (XMR)" + translationManager.emptyString
+                        text: qsTr("Amount to receive") + " (ZED)" + translationManager.emptyString
                         themeTransition: false
                     }
 
@@ -458,7 +458,7 @@ Item {
                         width: 220
                         source: "qrc:///images/merchant/input_box.png"
 
-                        MoneroComponents.Input {
+                        ZedcoinComponents.Input {
                             id: amountToReceive
                             topPadding: 0
                             leftPadding: 10
@@ -496,8 +496,8 @@ Item {
                         width: 220
                     }
 
-                    MoneroComponents.TextPlain {
-                        // @TODO: When we have XMR/USD rate avi. in the future.
+                    ZedcoinComponents.TextPlain {
+                        // @TODO: When we have ZED/USD rate avi. in the future.
                         visible: false
                         font.pixelSize: 14
                         font.bold: false
@@ -536,7 +536,7 @@ Item {
                     }
                 }
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     id: content
                     font.pixelSize: 14
                     font.bold: false
@@ -565,12 +565,12 @@ Item {
         width: 400
         radius: 5
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             font.pixelSize: 14
             font.bold: true
-            color: MoneroComponents.Style.moneroGrey
+            color: ZedcoinComponents.Style.zedcoinGrey
             text: qsTr("The merchant page requires a larger window") + translationManager.emptyString
             themeTransition: false
         }

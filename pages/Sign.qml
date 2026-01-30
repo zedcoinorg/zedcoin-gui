@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -32,9 +32,9 @@ import QtQuick.Controls.Styles 1.4
 import QtQuick.Layouts 1.1
 import QtQuick.Dialogs 1.2
 
-import moneroComponents.Clipboard 1.0
-import moneroComponents.WalletManager 1.0
-import "../components" as MoneroComponents
+import zedcoinComponents.Clipboard 1.0
+import zedcoinComponents.WalletManager 1.0
+import "../components" as ZedcoinComponents
 
 Rectangle {
     property alias signHeight: mainLayout.height
@@ -96,41 +96,41 @@ Rectangle {
 
         spacing: 20
 
-        MoneroComponents.Label {
+        ZedcoinComponents.Label {
             fontSize: 24
             text: qsTr("Sign/verify") + translationManager.emptyString
         }
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             text: qsTr("This page lets you sign/verify a message (or file contents) with your address.") + translationManager.emptyString
             wrapMode: Text.Wrap
             Layout.fillWidth: true
-            font.family: MoneroComponents.Style.fontRegular.name
+            font.family: ZedcoinComponents.Style.fontRegular.name
             font.pixelSize: 14
-            color: MoneroComponents.Style.defaultFontColor
+            color: ZedcoinComponents.Style.defaultFontColor
         }
 
         ColumnLayout {
             id: modeRow
             Layout.fillWidth: true
 
-            MoneroComponents.TextPlain {
+            ZedcoinComponents.TextPlain {
                 id: modeText
                 Layout.fillWidth: true
                 Layout.topMargin: 12
                 text: qsTr("Mode") + translationManager.emptyString
                 wrapMode: Text.Wrap
-                font.family: MoneroComponents.Style.fontRegular.name
+                font.family: ZedcoinComponents.Style.fontRegular.name
                 font.pixelSize: 20
                 textFormat: Text.RichText
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
 
             ColumnLayout {
                 id: modeButtonsColumn
                 Layout.topMargin: 10
 
-                MoneroComponents.RadioButton {
+                ZedcoinComponents.RadioButton {
                     id: handleMessageButton
                     text: qsTr("Message") + translationManager.emptyString
                     fontSize: 16
@@ -143,7 +143,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.RadioButton {
+                ZedcoinComponents.RadioButton {
                     id: handleFileButton
                     text: qsTr("File") + translationManager.emptyString
                     fontSize: 16
@@ -162,7 +162,7 @@ Rectangle {
             id: signSection
             spacing: 10
 
-            MoneroComponents.LabelSubheader {
+            ZedcoinComponents.LabelSubheader {
                 Layout.fillWidth: true
                 Layout.topMargin: 12
                 Layout.bottomMargin: 24
@@ -176,7 +176,7 @@ Rectangle {
                 spacing: 10
                 visible: messageMode
 
-                MoneroComponents.LineEditMulti{
+                ZedcoinComponents.LineEditMulti{
                     id: signMessageLine
                     Layout.fillWidth: true
                     labelFontSize: 14
@@ -194,7 +194,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: fileMode
 
-                MoneroComponents.LineEditMulti {
+                ZedcoinComponents.LineEditMulti {
                     id: signFileLine
                     labelFontSize: 14
                     labelText: qsTr("File") + translationManager.emptyString
@@ -207,7 +207,7 @@ Rectangle {
                     text: ''
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: loadFileToSignButton
                     Layout.alignment: Qt.AlignBottom
                     small: false
@@ -222,7 +222,7 @@ Rectangle {
             ColumnLayout {
                 id: signSignatureRow
 
-                MoneroComponents.LineEditMulti {
+                ZedcoinComponents.LineEditMulti {
                     id: signSignatureLine
                     labelFontSize: 14
                     labelText: qsTr("Signature") + translationManager.emptyString
@@ -239,7 +239,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignRight
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: clearSignButton
                     text: qsTr("Clear") + translationManager.emptyString
                     enabled: signMessageLine.text !== '' || signFileLine.text !== ''
@@ -251,7 +251,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: signMessageButton
                     visible: messageMode
                     text: qsTr("Sign Message") + translationManager.emptyString
@@ -263,7 +263,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: signFileButton
                     visible: fileMode
                     small: true
@@ -282,14 +282,14 @@ Rectangle {
             id: verifySection
             spacing: 16
 
-            MoneroComponents.LabelSubheader {
+            ZedcoinComponents.LabelSubheader {
                 Layout.fillWidth: true
                 Layout.bottomMargin: 24
                 textFormat: Text.RichText
                 text: fileMode ? qsTr("Verify file") + translationManager.emptyString : qsTr("Verify message") + translationManager.emptyString
             }
 
-            MoneroComponents.LineEditMulti {
+            ZedcoinComponents.LineEditMulti {
                 id: verifyMessageLine
                 visible: messageMode
                 Layout.fillWidth: true
@@ -307,7 +307,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: fileMode
 
-                MoneroComponents.LineEditMulti {
+                ZedcoinComponents.LineEditMulti {
                     id: verifyFileLine
                     labelFontSize: 14
                     labelText: qsTr("File") + translationManager.emptyString
@@ -319,7 +319,7 @@ Rectangle {
                     text: ''
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: loadFileToVerifyButton
                     Layout.alignment: Qt.AlignBottom
                     small: false
@@ -331,19 +331,19 @@ Rectangle {
                 }
             }
 
-            MoneroComponents.LineEditMulti {
+            ZedcoinComponents.LineEditMulti {
                 id: verifyAddressLine
                 Layout.fillWidth: true
                 labelFontSize: 14
                 labelText: qsTr("Address") + translationManager.emptyString
                 addressValidation: true
                 placeholderFontSize: 16
-                placeholderText: qsTr("Enter the Monero Address (example: 44AFFq5kSiGBoZ...)") + translationManager.emptyString
+                placeholderText: qsTr("Enter the Zedcoin Address (example: 44AFFq5kSiGBoZ...)") + translationManager.emptyString
                 wrapMode: Text.WrapAnywhere
                 text: ''
             }
 
-            MoneroComponents.LineEditMulti {
+            ZedcoinComponents.LineEditMulti {
                 id: verifySignatureLine
                 labelFontSize: 14
                 labelText: qsTr("Signature") + translationManager.emptyString
@@ -359,7 +359,7 @@ Rectangle {
                 Layout.topMargin: 12
                 Layout.alignment: Qt.AlignRight
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: clearVerifyButton
                     text: qsTr("Clear") + translationManager.emptyString
                     enabled: verifyMessageLine.text !== '' || verifyFileLine.text !== '' || verifyAddressLine.text !== '' || verifySignatureLine.text  !== ''
@@ -372,7 +372,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: verifyFileButton
                     visible: fileMode
                     small: true
@@ -384,7 +384,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: verifyMessageButton
                     visible: messageMode
                     small: true

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -34,7 +34,7 @@
 
 class Wallet;
 
-class WalletListenerImpl : public Monero::WalletListener, public PassphraseReceiver
+class WalletListenerImpl : public Zedcoin::WalletListener, public PassphraseReceiver
 {
 public:
     WalletListenerImpl(Wallet * w);
@@ -58,7 +58,7 @@ public:
 
     virtual void onPassphraseEntered(const QString &passphrase, bool enter_on_device, bool entry_abort) override;
 
-    virtual Monero::optional<std::string> onDevicePassphraseRequest(bool & on_device) override;
+    virtual Zedcoin::optional<std::string> onDevicePassphraseRequest(bool & on_device) override;
 
 private:
     Wallet * m_wallet;

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -31,8 +31,8 @@ import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.4
 import QtQuick.Layouts 1.1
 
-import "../components" as MoneroComponents
-import moneroComponents.Clipboard 1.0
+import "../components" as ZedcoinComponents
+import zedcoinComponents.Clipboard 1.0
 
 import "../js/TxUtils.js" as TxUtils
 
@@ -57,23 +57,23 @@ Rectangle {
             id: soloBox
             spacing: 20
 
-            MoneroComponents.Label {
+            ZedcoinComponents.Label {
                 id: soloTitleLabel
                 fontSize: 24
                 text: qsTr("Prove Transaction") + " / " + qsTr("Reserve") + translationManager.emptyString
             }
 
-            MoneroComponents.TextPlain {
+            ZedcoinComponents.TextPlain {
                 Layout.fillWidth: true
                 text: qsTr("Generate a proof of your incoming/outgoing payment by supplying the transaction ID, the recipient address and an optional message. \n" +
                            "For the case of outgoing payments, you can get a 'Spend Proof' that proves the authorship of a transaction. In this case, you don't need to specify the recipient address.") + qsTr("\nFor reserve proofs you don't need to specify tx id or address.") + translationManager.emptyString
                 wrapMode: Text.Wrap
-                font.family: MoneroComponents.Style.fontRegular.name
+                font.family: ZedcoinComponents.Style.fontRegular.name
                 font.pixelSize: 14
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: getProofTxIdLine
                 Layout.fillWidth: true
                 labelFontSize: 14
@@ -86,7 +86,7 @@ Rectangle {
                 enabled: getReserveProofAmtLine.text.length === 0
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: getProofAddressLine
                 Layout.fillWidth: true
                 labelFontSize: 14
@@ -99,14 +99,14 @@ Rectangle {
                 enabled: getReserveProofAmtLine.text.length === 0
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: getReserveProofAmtLine
                 Layout.fillWidth: true
                 labelFontSize: 14
                 labelText: qsTr("Amount") + translationManager.emptyString
                 fontSize: 16
                 placeholderFontSize: 16
-                placeholderText: qsTr("Paste amount of XMR (reserve proof only)") + translationManager.emptyString
+                placeholderText: qsTr("Paste amount of ZED (reserve proof only)") + translationManager.emptyString
                 readOnly: false
                 copyButton: true
                 enabled: getProofAddressLine.text.length === 0 && getProofTxIdLine.text.length === 0
@@ -130,7 +130,7 @@ Rectangle {
                 }
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: getProofMessageLine
                 Layout.fillWidth: true
                 fontSize: 16
@@ -142,7 +142,7 @@ Rectangle {
                 copyButton: true
             }
 
-            MoneroComponents.StandardButton {
+            ZedcoinComponents.StandardButton {
                 Layout.topMargin: 16
                 small: true
                 text: qsTr("Generate") + translationManager.emptyString
@@ -156,30 +156,30 @@ Rectangle {
             // underline
             Rectangle {
                 height: 1
-                color: MoneroComponents.Style.dividerColor
-                opacity: MoneroComponents.Style.dividerOpacity
+                color: ZedcoinComponents.Style.dividerColor
+                opacity: ZedcoinComponents.Style.dividerOpacity
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
                 anchors.bottomMargin: 3
             }
 
-            MoneroComponents.Label {
+            ZedcoinComponents.Label {
                 id: soloTitleLabel2
                 fontSize: 24
                 text: qsTr("Check Transaction") + " / " + qsTr("Reserve") + translationManager.emptyString
             }
 
-            MoneroComponents.TextPlain {
+            ZedcoinComponents.TextPlain {
                 text: qsTr("Verify that funds were paid to an address by supplying the transaction ID, the recipient address, the message used for signing and the signature.\n" +
                            "For the case with Spend Proof, you don't need to specify the recipient address.") + "\n" + qsTr("Transaction is not needed for reserve proof.") + translationManager.emptyString
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
-                font.family: MoneroComponents.Style.fontRegular.name
+                font.family: ZedcoinComponents.Style.fontRegular.name
                 font.pixelSize: 14
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: checkProofTxIdLine
                 Layout.fillWidth: true
                 labelFontSize: 14
@@ -191,7 +191,7 @@ Rectangle {
                 copyButton: true
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: checkProofAddressLine
                 Layout.fillWidth: true
                 labelFontSize: 14
@@ -203,7 +203,7 @@ Rectangle {
                 copyButton: true
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: checkProofMessageLine
                 Layout.fillWidth: true
                 fontSize: 16
@@ -215,7 +215,7 @@ Rectangle {
                 copyButton: true
             }
 
-            MoneroComponents.LineEdit {
+            ZedcoinComponents.LineEdit {
                 id: checkProofSignatureLine
                 Layout.fillWidth: true
                 fontSize: 16
@@ -227,7 +227,7 @@ Rectangle {
                 copyButton: true
             }
 
-            MoneroComponents.StandardButton {
+            ZedcoinComponents.StandardButton {
                 Layout.topMargin: 16
                 small: true
                 text: qsTr("Check") + translationManager.emptyString
@@ -241,20 +241,20 @@ Rectangle {
             // underline
             Rectangle {
                 height: 1
-                color: MoneroComponents.Style.dividerColor
-                opacity: MoneroComponents.Style.dividerOpacity
+                color: ZedcoinComponents.Style.dividerColor
+                opacity: ZedcoinComponents.Style.dividerOpacity
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
                 anchors.bottomMargin: 3
             }
 
-            MoneroComponents.TextPlain {
+            ZedcoinComponents.TextPlain {
                 text: qsTr("If a payment had several transactions then each must be checked and the results combined.") + translationManager.emptyString
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
-                font.family: MoneroComponents.Style.fontRegular.name
+                font.family: ZedcoinComponents.Style.fontRegular.name
                 font.pixelSize: 14
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
             }
         }
     }

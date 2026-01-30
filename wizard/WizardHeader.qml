@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -28,7 +28,7 @@
 
 import "../js/Wizard.js" as Wizard
 import "../components"
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 import QtQuick 2.9
 import QtQuick.Layouts 1.2
@@ -56,9 +56,9 @@ ColumnLayout {
 
         Text {
             text: title
-            font.family: MoneroComponents.Style.fontRegular.name
-            color: MoneroComponents.Style.defaultFontColor
-            opacity: MoneroComponents.Style.blackTheme ? 1.0 : 0.8
+            font.family: ZedcoinComponents.Style.fontRegular.name
+            color: ZedcoinComponents.Style.defaultFontColor
+            opacity: ZedcoinComponents.Style.blackTheme ? 1.0 : 0.8
             font.pixelSize: {
                 if (wizardController.layoutScale == 4) {
                     return 16;
@@ -76,7 +76,7 @@ ColumnLayout {
 
             Rectangle {
                 anchors.fill: parent
-                color: parent.parent.parent.focus ? MoneroComponents.Style.titleBarButtonHoverColor : "transparent"
+                color: parent.parent.parent.focus ? ZedcoinComponents.Style.titleBarButtonHoverColor : "transparent"
             }
         }
     }
@@ -86,10 +86,10 @@ ColumnLayout {
         Layout.alignment: Qt.AlignLeft
         visible: parent.subtitle !== "" && subtitleVisible
 
-        color: MoneroComponents.Style.dimmedFontColor
+        color: ZedcoinComponents.Style.dimmedFontColor
         text: subtitle
 
-        font.family: MoneroComponents.Style.fontRegular.name
+        font.family: ZedcoinComponents.Style.fontRegular.name
         font.pixelSize: {
             if (wizardController.layoutScale <= 2 ) {
                 return 16;
@@ -104,7 +104,7 @@ ColumnLayout {
 
         Rectangle {
             anchors.fill: parent
-            color: parent.parent.focus ? MoneroComponents.Style.titleBarButtonHoverColor : "transparent"
+            color: parent.parent.focus ? ZedcoinComponents.Style.titleBarButtonHoverColor : "transparent"
         }
     }
 }

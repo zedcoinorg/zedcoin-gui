@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -69,10 +69,10 @@ public:
 
     WalletKeysFilesModel(QObject *parent = 0);
 
-    Q_INVOKABLE void refresh(const QString &moneroAccountsDir);
+    Q_INVOKABLE void refresh(const QString &zedcoinAccountsDir);
     Q_INVOKABLE void clear();
 
-    void findWallets(const QString &moneroAccountsDir);
+    void findWallets(const QString &zedcoinAccountsDir);
     void addWalletKeysFile(const WalletKeysFiles &walletKeysFile);
     int rowCount(const QModelIndex & parent = QModelIndex()) const;
 

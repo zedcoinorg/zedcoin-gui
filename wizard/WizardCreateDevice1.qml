@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -31,11 +31,11 @@ import QtQuick.Dialogs 1.2
 import QtQuick.Layouts 1.2
 import QtQuick.Controls 2.0
 
-import moneroComponents.Wallet 1.0
+import zedcoinComponents.Wallet 1.0
 import "../js/Wizard.js" as Wizard
 import "../js/Utils.js" as Utils
 import "../components"
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 Rectangle {
     id: wizardCreateDevice1
@@ -104,16 +104,16 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
 
-                    MoneroComponents.TextPlain {
-                         font.family: MoneroComponents.Style.fontRegular.name
+                    ZedcoinComponents.TextPlain {
+                         font.family: ZedcoinComponents.Style.fontRegular.name
                          font.pixelSize: 14
-                         color: MoneroComponents.Style.defaultFontColor
+                         color: ZedcoinComponents.Style.defaultFontColor
                          wrapMode: Text.Wrap
                          Layout.fillWidth: true
                          text: qsTr("Hardware wallet model")
                      }
 
-                     MoneroComponents.StandardDropdown {
+                     ZedcoinComponents.StandardDropdown {
                          id: deviceNameDropdown
                          dataModel: deviceNameModel
                          Layout.preferredWidth: 450
@@ -121,7 +121,7 @@ Rectangle {
                          z: 3
                      }
 
-                     MoneroComponents.RadioButton {
+                     ZedcoinComponents.RadioButton {
                          id: newDeviceWallet
                          Layout.topMargin: 20
                          text: qsTr("Create a new wallet from device.") + translationManager.emptyString
@@ -134,7 +134,7 @@ Rectangle {
                          }
                      }
 
-                     MoneroComponents.RadioButton {
+                     ZedcoinComponents.RadioButton {
                          id: restoreDeviceWallet
                          Layout.topMargin: 10
                          text: qsTr("Restore a wallet from device. Use this if you used your hardware wallet before.") + translationManager.emptyString
@@ -206,7 +206,7 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: 20
 
-                MoneroComponents.LineEdit {
+                ZedcoinComponents.LineEdit {
                     id: restoreHeight
                     visible: !newDeviceWallet.checked
                     Layout.fillWidth: true
@@ -227,7 +227,7 @@ Rectangle {
                     text: qsTr("Advanced options") + translationManager.emptyString
                 }
 
-                MoneroComponents.LineEdit {
+                ZedcoinComponents.LineEdit {
                     id: lookahead
                     Layout.fillWidth: true
                     visible: showAdvancedCheckbox.checked
@@ -244,8 +244,8 @@ Rectangle {
                 text: qsTr("Error writing wallet from hardware device. Check application logs.") + translationManager.emptyString;
                 visible: errorMsg.text !== ""
                 Layout.fillWidth: true
-                font.family: MoneroComponents.Style.fontRegular.name
-                color: MoneroComponents.Style.errorColor
+                font.family: ZedcoinComponents.Style.fontRegular.name
+                color: ZedcoinComponents.Style.errorColor
                 font.pixelSize: 16
 
                 wrapMode: Text.WordWrap

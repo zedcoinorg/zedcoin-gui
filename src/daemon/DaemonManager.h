@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -80,7 +80,7 @@ public slots:
 private:
     std::unique_ptr<QProcess> m_daemon;
     QMutex m_daemonMutex;
-    QString m_monerod;
+    QString m_zedcoind;
     bool m_app_exit = false;
     bool m_noSync = false;
     QString args = "";

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -33,14 +33,14 @@ import QtQuick.Layouts 1.1
 import QtQuick.Dialogs 1.2
 import FontAwesome 1.0
 
-import "../components" as MoneroComponents
-import "../components/effects/" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "../components/effects/" as ZedcoinEffects
 
-import moneroComponents.Clipboard 1.0
-import moneroComponents.Wallet 1.0
-import moneroComponents.WalletManager 1.0
-import moneroComponents.TransactionHistory 1.0
-import moneroComponents.TransactionHistoryModel 1.0
+import zedcoinComponents.Clipboard 1.0
+import zedcoinComponents.Wallet 1.0
+import zedcoinComponents.WalletManager 1.0
+import zedcoinComponents.TransactionHistory 1.0
+import zedcoinComponents.TransactionHistoryModel 1.0
 import "../js/TxUtils.js" as TxUtils
 
 Rectangle {
@@ -82,7 +82,7 @@ Rectangle {
             visible: !selectAndSend
             spacing: 0
 
-            MoneroComponents.LabelSubheader {
+            ZedcoinComponents.LabelSubheader {
                 Layout.fillWidth: true
                 fontSize: 24
                 textFormat: Text.RichText
@@ -92,28 +92,28 @@ Rectangle {
             RowLayout {
                 Layout.topMargin: 22
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     text: qsTr("Total balance: ") + translationManager.emptyString
                     Layout.fillWidth: true
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
                     font.pixelSize: 16
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     themeTransition: false
                 }
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     id: balanceAll
                     Layout.rightMargin: 87
-                    font.family: MoneroComponents.Style.fontMonoRegular.name;
+                    font.family: ZedcoinComponents.Style.fontMonoRegular.name;
                     font.pixelSize: 16
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
 
                     MouseArea {
                         hoverEnabled: true
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.color = MoneroComponents.Style.orange
-                        onExited: parent.color = MoneroComponents.Style.defaultFontColor
+                        onEntered: parent.color = ZedcoinComponents.Style.orange
+                        onExited: parent.color = ZedcoinComponents.Style.defaultFontColor
                         onClicked: {
                             console.log("Copied to clipboard");
                             var balanceAllNumberOnly = parent.text.slice(0, -4);
@@ -127,28 +127,28 @@ Rectangle {
             RowLayout {
                 Layout.topMargin: 10
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     text: qsTr("Total unlocked balance: ") + translationManager.emptyString
                     Layout.fillWidth: true
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
                     font.pixelSize: 16
-                    font.family: MoneroComponents.Style.fontRegular.name
+                    font.family: ZedcoinComponents.Style.fontRegular.name
                     themeTransition: false
                 }
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     id: unlockedBalanceAll
                     Layout.rightMargin: 87
-                    font.family: MoneroComponents.Style.fontMonoRegular.name;
+                    font.family: ZedcoinComponents.Style.fontMonoRegular.name;
                     font.pixelSize: 16
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
 
                     MouseArea {
                         hoverEnabled: true
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.color = MoneroComponents.Style.orange
-                        onExited: parent.color = MoneroComponents.Style.defaultFontColor
+                        onEntered: parent.color = ZedcoinComponents.Style.orange
+                        onExited: parent.color = ZedcoinComponents.Style.defaultFontColor
                         onClicked: {
                             console.log("Copied to clipboard");
                             var unlockedBalanceAllNumberOnly = parent.text.slice(0, -4);
@@ -167,14 +167,14 @@ Rectangle {
             RowLayout {
                 spacing: 0
 
-                MoneroComponents.LabelSubheader {
+                ZedcoinComponents.LabelSubheader {
                     Layout.fillWidth: true
                     fontSize: 24
                     textFormat: Text.RichText
                     text: qsTr("Accounts") + translationManager.emptyString
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: createNewAccountButton
                     visible: !selectAndSend
                     small: true
@@ -197,12 +197,12 @@ Rectangle {
                         anchors.left: createNewAccountButton.left
                         anchors.right: createNewAccountButton.right
                         height: 2
-                        color: MoneroComponents.Style.appWindowBorderColor
+                        color: ZedcoinComponents.Style.appWindowBorderColor
 
-                        MoneroEffects.ColorTransition {
+                        ZedcoinEffects.ColorTransition {
                             targetObj: parent
-                            blackColor: MoneroComponents.Style._b_appWindowBorderColor
-                            whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+                            blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+                            whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
                         }
                     }
                 }
@@ -231,29 +231,29 @@ Rectangle {
                         height: subaddressAccountListRow.subaddressAccountListItemHeight
                         width: parent ? parent.width : undefined
                         Layout.fillWidth: true
-                        color: itemMouseArea.containsMouse || index === currentAccountIndex ? MoneroComponents.Style.titleBarButtonHoverColor : "transparent"
+                        color: itemMouseArea.containsMouse || index === currentAccountIndex ? ZedcoinComponents.Style.titleBarButtonHoverColor : "transparent"
 
                         Rectangle {
                             visible: index === currentAccountIndex
                             Layout.fillHeight: true
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            color: MoneroComponents.Style.accountColors[currentAccountIndex % MoneroComponents.Style.accountColors.length]
+                            color: ZedcoinComponents.Style.accountColors[currentAccountIndex % ZedcoinComponents.Style.accountColors.length]
                             width: 2
                         }
 
                         Rectangle {
-                            color: MoneroComponents.Style.appWindowBorderColor
+                            color: ZedcoinComponents.Style.appWindowBorderColor
                             anchors.right: parent.right
                             anchors.left: parent.left
                             anchors.top: parent.top
                             height: 1
                             visible: index !== 0
 
-                            MoneroEffects.ColorTransition {
+                            ZedcoinEffects.ColorTransition {
                                 targetObj: parent
-                                blackColor: MoneroComponents.Style._b_appWindowBorderColor
-                                whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+                                blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+                                whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
                             }
                         }
 
@@ -263,9 +263,9 @@ Rectangle {
                             anchors.rightMargin: 80
                             color: "transparent"
 
-                            MoneroComponents.Label {
+                            ZedcoinComponents.Label {
                                 id: idLabel
-                                color: index === currentAccountIndex ? MoneroComponents.Style.defaultFontColor : "#757575"
+                                color: index === currentAccountIndex ? ZedcoinComponents.Style.defaultFontColor : "#757575"
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: parent.left
                                 anchors.leftMargin: 6
@@ -274,9 +274,9 @@ Rectangle {
                                 themeTransition: false
                             }
 
-                            MoneroComponents.Label {
+                            ZedcoinComponents.Label {
                                 id: nameLabel
-                                color: index === currentAccountIndex ? MoneroComponents.Style.defaultFontColor : MoneroComponents.Style.dimmedFontColor
+                                color: index === currentAccountIndex ? ZedcoinComponents.Style.defaultFontColor : ZedcoinComponents.Style.dimmedFontColor
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: idLabel.right
                                 anchors.leftMargin: 6
@@ -287,27 +287,27 @@ Rectangle {
                                 themeTransition: false
                             }
 
-                            MoneroComponents.Label {
+                            ZedcoinComponents.Label {
                                 id: addressLabel
-                                color: MoneroComponents.Style.defaultFontColor
+                                color: ZedcoinComponents.Style.defaultFontColor
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: balanceNumberLabel.left
                                 anchors.leftMargin: -addressLabel.width - 30
                                 fontSize: 16
-                                fontFamily: MoneroComponents.Style.fontMonoRegular.name;
+                                fontFamily: ZedcoinComponents.Style.fontMonoRegular.name;
                                 text: TxUtils.addressTruncatePretty(address, mainLayout.width < 740 ? 1 : (mainLayout.width < 900 ? 2 : 3))
                                 themeTransition: false
                             }
 
-                            MoneroComponents.Label {
+                            ZedcoinComponents.Label {
                                 id: balanceNumberLabel
-                                color: MoneroComponents.Style.defaultFontColor
+                                color: ZedcoinComponents.Style.defaultFontColor
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.left: parent.right
                                 anchors.leftMargin: -balanceNumberLabel.width
                                 fontSize: 16
-                                fontFamily: MoneroComponents.Style.fontMonoRegular.name;
-                                text: balance + " XMR"
+                                fontFamily: ZedcoinComponents.Style.fontMonoRegular.name;
+                                text: balance + " ZED"
                                 elide: Text.ElideRight
                                 textWidth: 180
                                 themeTransition: false
@@ -333,12 +333,12 @@ Rectangle {
                             height: 21
                             spacing: 10
 
-                            MoneroComponents.IconButton {
+                            ZedcoinComponents.IconButton {
                                 id: renameButton
                                 image: "qrc:///images/edit.svg"
                                 fontAwesomeFallbackIcon: FontAwesome.edit
                                 fontAwesomeFallbackSize: 22
-                                color: MoneroComponents.Style.defaultFontColor
+                                color: ZedcoinComponents.Style.defaultFontColor
                                 opacity: isOpenGL ? 0.5 : 1
                                 fontAwesomeFallbackOpacity: 0.5
                                 Layout.preferredWidth: 23
@@ -348,12 +348,12 @@ Rectangle {
                                 onClicked: pageAccount.renameSubaddressAccountLabel(index);
                             }
 
-                            MoneroComponents.IconButton {
+                            ZedcoinComponents.IconButton {
                                 id: copyButton
                                 image: "qrc:///images/copy.svg"
                                 fontAwesomeFallbackIcon: FontAwesome.clipboard
                                 fontAwesomeFallbackSize: 22
-                                color: MoneroComponents.Style.defaultFontColor
+                                color: ZedcoinComponents.Style.defaultFontColor
                                 opacity: isOpenGL ? 0.5 : 1
                                 fontAwesomeFallbackOpacity: 0.5
                                 Layout.preferredWidth: 16
@@ -376,14 +376,14 @@ Rectangle {
             }
 
             Rectangle {
-                color: MoneroComponents.Style.appWindowBorderColor
+                color: ZedcoinComponents.Style.appWindowBorderColor
                 Layout.fillWidth: true
                 height: 1
 
-                MoneroEffects.ColorTransition {
+                ZedcoinEffects.ColorTransition {
                     targetObj: parent
-                    blackColor: MoneroComponents.Style._b_appWindowBorderColor
-                    whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+                    blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+                    whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
                 }
             }
         }
@@ -396,8 +396,8 @@ Rectangle {
             subaddressAccountListView.model = appWindow.currentWallet.subaddressAccountModel;
             appWindow.currentWallet.subaddress.refresh(appWindow.currentWallet.currentSubaddressAccount)
 
-            balanceAll.text = walletManager.displayAmount(appWindow.currentWallet.balanceAll()) + " XMR"
-            unlockedBalanceAll.text = walletManager.displayAmount(appWindow.currentWallet.unlockedBalanceAll()) + " XMR"
+            balanceAll.text = walletManager.displayAmount(appWindow.currentWallet.balanceAll()) + " ZED"
+            unlockedBalanceAll.text = walletManager.displayAmount(appWindow.currentWallet.unlockedBalanceAll()) + " ZED"
         }
     }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -28,8 +28,8 @@
 
 import QtQuick 2.9
 
-import "../components" as MoneroComponents
-import "../components/effects/" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "../components/effects/" as ZedcoinEffects
 
 Label {
     id: item
@@ -42,12 +42,12 @@ Label {
         anchors.left: parent.left
         anchors.right: parent.right
         height: 2
-        color: MoneroComponents.Style.appWindowBorderColor
+        color: ZedcoinComponents.Style.appWindowBorderColor
 
-        MoneroEffects.ColorTransition {
+        ZedcoinEffects.ColorTransition {
             targetObj: parent
-            blackColor: MoneroComponents.Style._b_appWindowBorderColor
-            whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+            blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+            whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
         }
     }
 }

@@ -132,28 +132,28 @@ function restoreWalletCheckViewSpendAddress(walletmanager, nettype, viewkey, spe
 //usage: getApproximateBlockchainHeight("March 18 2016") or getApproximateBlockchainHeight("2016-11-11")
 //returns estimated block height with 1 month buffer prior to requested date.
 function getApproximateBlockchainHeight(_date, _nettype){
-    // time of monero birth 2014-04-18 10:49:53 (1397818193)
-    var moneroBirthTime = _nettype == "Mainnet" ? 1397818193 : _nettype == "Testnet" ? 1410295020 : 1518932025;
+    // time of zedcoin birth 2026-01-27 18:00:00 UTC (1769536800)
+    var zedcoinBirthTime = _nettype == "Mainnet" ? 1769536800 : _nettype == "Testnet" ? 1769536800 : 1769536800;
     // avg seconds per block in v1
     var secondsPerBlockV1 = 60;
-    // time of v2 fork 2016-03-23 15:57:38 (1458748658)
-    var forkTime = _nettype == "Mainnet" ? 1458748658 : _nettype == "Testnet" ? 1448285909 : 1520937818;
+    // time of v2 fork (same as launch for new chain)
+    var forkTime = _nettype == "Mainnet" ? 1769536800 : _nettype == "Testnet" ? 1769536800 : 1769536800;
     // v2 fork block
-    var forkBlock = _nettype == "Mainnet" ? 1009827 : _nettype == "Testnet" ? 624634 : 32000;
+    var forkBlock = _nettype == "Mainnet" ? 0 : _nettype == "Testnet" ? 0 : 0;
     // avg seconds per block in V2
     var secondsPerBlockV2 = 120;
     // time in UTC
     var requestedTime = Math.floor(new Date(_date) / 1000);
     var approxBlockchainHeight;
     var secondsPerBlock;
-    // before monero's birth
-    if (requestedTime < moneroBirthTime){
-        console.log("Calculated blockchain height: 0, requestedTime < moneroBirthTime " );
+    // before zedcoin's birth
+    if (requestedTime < zedcoinBirthTime){
+        console.log("Calculated blockchain height: 0, requestedTime < zedcoinBirthTime " );
         return 0;
     }
     // time between during v1
-    if (requestedTime > moneroBirthTime && requestedTime < forkTime){
-        approxBlockchainHeight = Math.floor((requestedTime - moneroBirthTime)/secondsPerBlockV1);
+    if (requestedTime > zedcoinBirthTime && requestedTime < forkTime){
+        approxBlockchainHeight = Math.floor((requestedTime - zedcoinBirthTime)/secondsPerBlockV1);
         console.log("Calculated blockchain height: " + approxBlockchainHeight );
         secondsPerBlock = secondsPerBlockV1;
     }
@@ -164,12 +164,7 @@ function getApproximateBlockchainHeight(_date, _nettype){
         secondsPerBlock = secondsPerBlockV2;
     }
 
-    if(_nettype == "Testnet" || _nettype == "Stagenet"){
-        // testnet got some huge rollbacks, so the estimation is way off
-        var approximateTestnetRolledBackBlocks = _nettype == "Testnet" ? 342100 : _nettype == "Stagenet" ? 60000 : 30000;
-        if(approxBlockchainHeight > approximateTestnetRolledBackBlocks)
-            approxBlockchainHeight -= approximateTestnetRolledBackBlocks
-    }
+    // no testnet/stagenet rollbacks for a new chain
 
     var blocksPerMonth = 60*60*24*30/secondsPerBlock;
     if(approxBlockchainHeight - blocksPerMonth > 0){

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -34,20 +34,20 @@ import QtGraphicalEffects 1.0
 import QtQuick.Controls.Styles 1.4
 import QtQuick.Layouts 1.2
 import QtQuick.Dialogs 1.2
-import moneroComponents.Wallet 1.0
+import zedcoinComponents.Wallet 1.0
 
 import "../js/Wizard.js" as Wizard
 import "../js/Windows.js" as Windows
 import "../js/Utils.js" as Utils
-import "../components" as MoneroComponents
-import "../components/effects/" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "../components/effects/" as ZedcoinEffects
 import "../pages"
 
 Rectangle {
     id: wizardController
     anchors.fill: parent
 
-    signal useMoneroClicked()
+    signal useZedcoinClicked()
     signal walletCreatedFromDevice(bool success)
 
     function restart(generatingNewSeed) {
@@ -248,15 +248,15 @@ Rectangle {
             }
         ]
 
-        MoneroEffects.GradientBackground {
+        ZedcoinEffects.GradientBackground {
             anchors.fill: parent
-            fallBackColor: MoneroComponents.Style.middlePanelBackgroundColor
-            initialStartColor: MoneroComponents.Style.wizardBackgroundGradientStart
-            initialStopColor: MoneroComponents.Style.middlePanelBackgroundGradientStop
-            blackColorStart: MoneroComponents.Style._b_wizardBackgroundGradientStart
-            blackColorStop: MoneroComponents.Style._b_middlePanelBackgroundGradientStop
-            whiteColorStart: MoneroComponents.Style._w_wizardBackgroundGradientStart
-            whiteColorStop: MoneroComponents.Style._w_middlePanelBackgroundGradientStop
+            fallBackColor: ZedcoinComponents.Style.middlePanelBackgroundColor
+            initialStartColor: ZedcoinComponents.Style.wizardBackgroundGradientStart
+            initialStopColor: ZedcoinComponents.Style.middlePanelBackgroundGradientStop
+            blackColorStart: ZedcoinComponents.Style._b_wizardBackgroundGradientStart
+            blackColorStop: ZedcoinComponents.Style._b_middlePanelBackgroundGradientStop
+            whiteColorStart: ZedcoinComponents.Style._w_wizardBackgroundGradientStart
+            whiteColorStop: ZedcoinComponents.Style._w_middlePanelBackgroundGradientStop
             start: Qt.point(0, 0)
             end: Qt.point(height, width)
         }

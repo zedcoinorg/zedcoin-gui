@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -31,7 +31,7 @@ import QtQuick.Layouts 1.1
 
 import FontAwesome 1.0
 
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 Item {
     id: button
@@ -39,7 +39,7 @@ Item {
     property bool primary: true
     property string rightIcon: ""
     property string rightIconInactive: ""
-    property color textColor: primary ? MoneroComponents.Style.buttonTextColor : MoneroComponents.Style.buttonSecondaryTextColor;
+    property color textColor: primary ? ZedcoinComponents.Style.buttonTextColor : ZedcoinComponents.Style.buttonSecondaryTextColor;
     property bool small: false
     property alias text: label.text
     property alias fontBold: label.font.bold
@@ -80,8 +80,8 @@ Item {
                 PropertyChanges {
                     target: buttonRect
                     color: primary
-                        ? MoneroComponents.Style.buttonBackgroundColorHover
-                        : MoneroComponents.Style.buttonSecondaryBackgroundColorHover
+                        ? ZedcoinComponents.Style.buttonBackgroundColorHover
+                        : ZedcoinComponents.Style.buttonSecondaryBackgroundColorHover
                 }
             },
             State {
@@ -90,8 +90,8 @@ Item {
                 PropertyChanges {
                     target: buttonRect
                     color: primary
-                        ? MoneroComponents.Style.buttonBackgroundColor
-                        : MoneroComponents.Style.buttonSecondaryBackgroundColor
+                        ? ZedcoinComponents.Style.buttonBackgroundColor
+                        : ZedcoinComponents.Style.buttonSecondaryBackgroundColor
                 }
             },
             State {
@@ -101,8 +101,8 @@ Item {
                     target: buttonRect
                     opacity: 0.5
                     color: primary
-                        ? MoneroComponents.Style.buttonBackgroundColor
-                        : MoneroComponents.Style.buttonSecondaryBackgroundColor
+                        ? ZedcoinComponents.Style.buttonBackgroundColor
+                        : ZedcoinComponents.Style.buttonSecondaryBackgroundColor
                 }
                 PropertyChanges {
                     target: label
@@ -123,16 +123,16 @@ Item {
         spacing: 11
         anchors.centerIn: parent
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: label
-            font.family: MoneroComponents.Style.fontBold.name
+            font.family: ZedcoinComponents.Style.fontBold.name
             font.bold: button.primary ? true : false
             font.pixelSize: button.fontSize
             color: !buttonArea.pressed ? button.textColor : "transparent"
             visible: text !== ""
             themeTransition: false
 
-            MoneroComponents.TextPlain {
+            ZedcoinComponents.TextPlain {
                 anchors.centerIn: parent
                 color: button.textColor
                 font.bold: label.font.bold
@@ -161,7 +161,7 @@ Item {
 
         Text {
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-            color: MoneroComponents.Style.defaultFontColor
+            color: ZedcoinComponents.Style.defaultFontColor
             font.family: FontAwesome.fontFamilySolid
             font.pixelSize: button.small ? 16 : 20
             font.styleName: "Solid"
@@ -170,7 +170,7 @@ Item {
         }
     }
 
-    MoneroComponents.Tooltip {
+    ZedcoinComponents.Tooltip {
         id: tooltip
         anchors.fill: parent
     }

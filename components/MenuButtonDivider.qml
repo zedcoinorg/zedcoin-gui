@@ -1,15 +1,15 @@
 import QtQuick 2.9
 
-import "." as MoneroComponents
-import "effects/" as MoneroEffects
+import "." as ZedcoinComponents
+import "effects/" as ZedcoinEffects
 
 Rectangle {
-    color: MoneroComponents.Style.appWindowBorderColor
+    color: ZedcoinComponents.Style.appWindowBorderColor
     height: 1
 
-    MoneroEffects.ColorTransition {
+    ZedcoinEffects.ColorTransition {
         targetObj: parent
-        blackColor: MoneroComponents.Style._b_appWindowBorderColor
-        whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+        blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+        whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
     }
 }

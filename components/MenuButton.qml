@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -29,8 +29,8 @@
 import QtQuick 2.9
 import QtGraphicalEffects 1.0
 
-import "../components" as MoneroComponents
-import "effects/" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "effects/" as ZedcoinEffects
 
 Rectangle {
     id: button
@@ -72,8 +72,8 @@ Rectangle {
         start: Qt.point(width, 0)
         end: Qt.point(0, 0)
         gradient: Gradient {
-            GradientStop { position: 0.0; color: MoneroComponents.Style.menuButtonGradientStart }
-            GradientStop { position: 1.0; color: MoneroComponents.Style.menuButtonGradientStop }
+            GradientStop { position: 0.0; color: ZedcoinComponents.Style.menuButtonGradientStart }
+            GradientStop { position: 1.0; color: ZedcoinComponents.Style.menuButtonGradientStop }
         }
         opacity: button.checked ? 1 : 0.3
     }
@@ -82,7 +82,7 @@ Rectangle {
     Rectangle {
         visible: !isOpenGL && (button.checked || buttonArea.containsMouse)
         anchors.fill: parent
-        color: MoneroComponents.Style.menuButtonFallbackBackgroundColor
+        color: ZedcoinComponents.Style.menuButtonFallbackBackgroundColor
         opacity: button.checked ? 1 : 0.3
     }
 
@@ -92,14 +92,14 @@ Rectangle {
         anchors.leftMargin: 20
         height: parent.height
         width: 2
-        color: button.checked ? MoneroComponents.Style.accountColors[currentAccountIndex % MoneroComponents.Style.accountColors.length] : "transparent"
+        color: button.checked ? ZedcoinComponents.Style.accountColors[currentAccountIndex % ZedcoinComponents.Style.accountColors.length] : "transparent"
 
         // button text
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: label
-            color: MoneroComponents.Style.menuButtonTextColor
-            themeTransitionBlackColor: MoneroComponents.Style._b_menuButtonTextColor
-            themeTransitionWhiteColor: MoneroComponents.Style._w_menuButtonTextColor
+            color: ZedcoinComponents.Style.menuButtonTextColor
+            themeTransitionBlackColor: ZedcoinComponents.Style._b_menuButtonTextColor
+            themeTransitionWhiteColor: ZedcoinComponents.Style._w_menuButtonTextColor
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.right
             anchors.leftMargin: button.getOffset() + 8
@@ -109,26 +109,26 @@ Rectangle {
     }
 
     // menu button right arrow
-    MoneroEffects.ImageMask {
+    ZedcoinEffects.ImageMask {
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: parent.getOffset()
         anchors.right: parent.right
         anchors.rightMargin: 20
         height: 14
         width: 8
-        image: MoneroComponents.Style.menuButtonImageRightSource
-        color: button.checked ? MoneroComponents.Style.menuButtonImageRightColorActive : MoneroComponents.Style.menuButtonImageRightColor
+        image: ZedcoinComponents.Style.menuButtonImageRightSource
+        color: button.checked ? ZedcoinComponents.Style.menuButtonImageRightColorActive : ZedcoinComponents.Style.menuButtonImageRightColor
         opacity: button.checked ? 0.8 : 0.25
     }
 
-    MoneroComponents.TextPlain {
+    ZedcoinComponents.TextPlain {
         id: symbolText
         anchors.right: parent.right
         anchors.rightMargin: 44
         anchors.verticalCenter: parent.verticalCenter
         font.pixelSize: 12
         font.bold: true
-        color: MoneroComponents.Style.menuButtonTextColor
+        color: ZedcoinComponents.Style.menuButtonTextColor
         visible: appWindow.ctrlPressed
         themeTransition: false
     }

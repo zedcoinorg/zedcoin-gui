@@ -6,9 +6,9 @@ Use macOS 10.12 - 10.13 for better backwards compability.
 
 2. Get the latest LTS from here: https://www.qt.io/offline-installers and install
 
-3. `git clone --recursive -b v0.X.Y.Z --depth 1 https://github.com/monero-project/monero-gui` 
+3. `git clone --recursive -b v0.X.Y.Z --depth 1 https://github.com/zedcoin-project/zedcoin-gui` 
 
-4. Compile `monero-wallet-gui.app`
+4. Compile `zedcoin-wallet-gui.app`
 
 ```bash
 mkdir build && cd build
@@ -17,7 +17,7 @@ make
 make deploy
 ```
 
-5. Replace the `monerod` binary inside `monero-wallet-gui.app/Contents/MacOS/` with one built using deterministic builds / gitian.
+5. Replace the `zedcoind` binary inside `zedcoin-wallet-gui.app/Contents/MacOS/` with one built using deterministic builds / gitian.
 
 ## Codesigning and notarizing
 
@@ -34,17 +34,17 @@ make deploy
 </plist>
 ```
 
-2. `codesign --deep --force --verify --verbose --options runtime --timestamp --entitlements entitlements.plist --sign 'XXXXXXXXXX' monero-wallet-gui.app`
+2. `codesign --deep --force --verify --verbose --options runtime --timestamp --entitlements entitlements.plist --sign 'XXXXXXXXXX' zedcoin-wallet-gui.app`
 
-You can check if this step worked by using `codesign -dvvv monero-wallet-gui.app`
+You can check if this step worked by using `codesign -dvvv zedcoin-wallet-gui.app`
 
-3. `hdiutil create -fs HFS+ -srcfolder monero-gui-v0.X.Y.Z -volname monero-wallet-gui monero-gui-mac-x64-v0.X.Y.Z.dmg`
+3. `hdiutil create -fs HFS+ -srcfolder zedcoin-gui-v0.X.Y.Z -volname zedcoin-wallet-gui zedcoin-gui-mac-x64-v0.X.Y.Z.dmg`
 
-4. `xcrun notarytool submit monero-gui-mac-x64-v0.X.Y.Z.dmg --apple-id email@address.org --team-id XXXXXXXXXX`
+4. `xcrun notarytool submit zedcoin-gui-mac-x64-v0.X.Y.Z.dmg --apple-id email@address.org --team-id XXXXXXXXXX`
 
 5. `xcrun notarytool info aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee --apple-id email@address.org --team-id XXXXXXXXXX`
 
-6. `xcrun stapler staple -v monero-gui-mac-x64-v0.X.Y.Z.dmg`
+6. `xcrun stapler staple -v zedcoin-gui-mac-x64-v0.X.Y.Z.dmg`
 
 ## Compile Qt for Apple Silicon
 
@@ -72,4 +72,4 @@ make install
 
 For compilation with Xcode 15 the following patch has to be applied: https://raw.githubusercontent.com/Homebrew/formula-patches/086e8cf/qt5/qt5-qmake-xcode15.patch
 
-The `CMAKE_PREFIX_PATH` has to be set to `/path/to/qt-build-dir/` during monero-gui compilation.
+The `CMAKE_PREFIX_PATH` has to be set to `/path/to/qt-build-dir/` during zedcoin-gui compilation.

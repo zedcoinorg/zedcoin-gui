@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -32,7 +32,7 @@ import QtQuick.Layouts 1.2
 import QtGraphicalEffects 1.0
 import QtQuick.Controls 2.0
 
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 
 RowLayout {
     id: rowlayout
@@ -50,7 +50,7 @@ RowLayout {
         Layout.preferredWidth: 70
         Layout.preferredHeight: 70
 
-        MoneroComponents.CheckBox {
+        ZedcoinComponents.CheckBox {
             id: checkboxItem
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
@@ -60,14 +60,14 @@ RowLayout {
 
         Image {
             id: icon
-            visible: !rowlayout.checkbox && (!isOpenGL || MoneroComponents.Style.blackTheme)
+            visible: !rowlayout.checkbox && (!isOpenGL || ZedcoinComponents.Style.blackTheme)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             source: ""
         }
 
         DropShadow {
-            visible: !rowlayout.checkbox && (isOpenGL && !MoneroComponents.Style.blackTheme)
+            visible: !rowlayout.checkbox && (isOpenGL && !ZedcoinComponents.Style.blackTheme)
             anchors.fill: icon
             horizontalOffset: 3
             verticalOffset: 3
@@ -92,15 +92,15 @@ RowLayout {
         Layout.fillWidth: true
         spacing: 0
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: header
             Layout.fillWidth: true
             leftPadding: parent.leftPadding
             topPadding: 0
-            color: MoneroComponents.Style.defaultFontColor
-            opacity: MoneroComponents.Style.blackTheme ? 1.0 : 0.8
+            color: ZedcoinComponents.Style.defaultFontColor
+            opacity: ZedcoinComponents.Style.blackTheme ? 1.0 : 0.8
             font.bold: true
-            font.family: MoneroComponents.Style.fontRegular.name
+            font.family: ZedcoinComponents.Style.fontRegular.name
             font.pixelSize: {
                 if (wizardController.layoutScale == 4) {
                     return 16;
@@ -120,11 +120,11 @@ RowLayout {
             }
         }
 
-        MoneroComponents.TextPlain {
+        ZedcoinComponents.TextPlain {
             id: body
             Layout.fillWidth: true
-            color: MoneroComponents.Style.dimmedFontColor
-            font.family: MoneroComponents.Style.fontRegular.name
+            color: ZedcoinComponents.Style.dimmedFontColor
+            font.family: ZedcoinComponents.Style.fontRegular.name
             font.pixelSize: {
                 if (wizardController.layoutScale <= 2 ){
                     return 16;

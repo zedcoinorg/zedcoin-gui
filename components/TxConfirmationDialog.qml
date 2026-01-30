@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -31,7 +31,7 @@ import QtQuick.Controls 1.4 as QtQuickControls1
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.1
 
-import "../components" as MoneroComponents
+import "../components" as ZedcoinComponents
 import FontAwesome 1.0
 
 Rectangle {
@@ -44,10 +44,10 @@ Rectangle {
     // TODO: implement without hardcoding sizes
     width: 590
     height: layout.height + layout.anchors.margins * 2
-    color: MoneroComponents.Style.blackTheme ? "black" : "white"
+    color: ZedcoinComponents.Style.blackTheme ? "black" : "white"
     visible: false
     radius: 10
-    border.color: MoneroComponents.Style.blackTheme ? Qt.rgba(255, 255, 255, 0.25) : Qt.rgba(0, 0, 0, 0.25)
+    border.color: ZedcoinComponents.Style.blackTheme ? Qt.rgba(255, 255, 255, 0.25) : Qt.rgba(0, 0, 0, 0.25)
     border.width: 1
     Keys.enabled: true
     Keys.onEscapePressed: {
@@ -139,8 +139,8 @@ Rectangle {
         root.sweepUnmixable = false;
     }
 
-    function showFiatConversion(valueXMR) {
-        const fiatFee = fiatApiConvertToFiat(valueXMR);
+    function showFiatConversion(valueZED) {
+        const fiatFee = fiatApiConvertToFiat(valueZED);
         return "%1 %2".arg(fiatFee < 0.01 ? "&lt;0.01" : "~" + fiatFee).arg(fiatApiCurrencySymbol());
     }
 
@@ -156,7 +156,7 @@ Rectangle {
             Layout.topMargin: 10
             Layout.fillWidth: true
 
-            MoneroComponents.Label {
+            ZedcoinComponents.Label {
                 id: dialogTitle
                 Layout.fillWidth: true
                 fontSize: 18
@@ -178,7 +178,7 @@ Rectangle {
             id: errorText
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: MoneroComponents.Style.defaultFontColor
+            color: ZedcoinComponents.Style.defaultFontColor
             wrapMode: Text.Wrap
             font.pixelSize: 15
         }
@@ -200,12 +200,12 @@ Rectangle {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 font.pixelSize: root.transactionAmount == "(all)" && currentWallet.isHwBacked() === true ? 32 : 42
-                color: MoneroComponents.Style.defaultFontColor
+                color: ZedcoinComponents.Style.defaultFontColor
                 text: {
                     if (root.transactionAmount == "(all)" && currentWallet.isHwBacked() === true) {
                         return qsTr("All unlocked balance") +  translationManager.emptyString;
                     } else {
-                        return root.transactionAmount + " XMR " +  translationManager.emptyString;
+                        return root.transactionAmount + " ZED " +  translationManager.emptyString;
                     }
                 }
             }
@@ -215,7 +215,7 @@ Rectangle {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 font.pixelSize: 20
-                color: MoneroComponents.Style.buttonSecondaryTextColor
+                color: ZedcoinComponents.Style.buttonSecondaryTextColor
                 text: showFiatConversion(transactionAmount) + translationManager.emptyString
             }
         }
@@ -228,7 +228,7 @@ Rectangle {
             rowSpacing: 16
 
             Text {
-                color: MoneroComponents.Style.dimmedFontColor
+                color: ZedcoinComponents.Style.dimmedFontColor
                 text: qsTr("From") + ":" + translationManager.emptyString
                 font.pixelSize: 15
             }
@@ -240,7 +240,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     font.pixelSize: 15
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
                     text: {
                         if (currentWallet) {
                             var walletTitle = function() {
@@ -269,7 +269,7 @@ Rectangle {
 
             Text {
                 font.pixelSize: 15
-                color: MoneroComponents.Style.dimmedFontColor
+                color: ZedcoinComponents.Style.dimmedFontColor
                 text: qsTr("To") + ":" + translationManager.emptyString
             }
 
@@ -285,8 +285,8 @@ Rectangle {
 
                 TextArea.flickable: TextArea {
                     id : recipientsArea
-                    color: MoneroComponents.Style.defaultFontColor
-                    font.family: MoneroComponents.Style.fontMonoRegular.name
+                    color: ZedcoinComponents.Style.defaultFontColor
+                    font.family: ZedcoinComponents.Style.fontMonoRegular.name
                     font.pixelSize: 14
                     topPadding: 0
                     bottomPadding: 0
@@ -295,7 +295,7 @@ Rectangle {
                     readOnly: true
                     selectByKeyboard: true
                     selectByMouse: true
-                    selectionColor: MoneroComponents.Style.textSelectionColor
+                    selectionColor: ZedcoinComponents.Style.textSelectionColor
                     textFormat: TextEdit.RichText
                     wrapMode: TextEdit.Wrap
                     text: {
@@ -308,10 +308,10 @@ Rectangle {
                             if (addressBookName) {
                                 title = FontAwesome.addressBook + " " + addressBookName;
                             } else {
-                                title = qsTr("Monero address") + translationManager.emptyString;
+                                title = qsTr("Zedcoin address") + translationManager.emptyString;
                             }
                             if (recipients.length > 1) {
-                                title = "%1. %2 - %3 XMR".arg(index + 1).arg(title).arg(recipient.amount);
+                                title = "%1. %2 - %3 ZED".arg(index + 1).arg(title).arg(recipient.amount);
                                 if (persistentSettings.fiatPriceEnabled) {
                                     title += " (%1)".arg(showFiatConversion(recipient.amount));
                                 }
@@ -328,7 +328,7 @@ Rectangle {
             }
 
             Text {
-                color: MoneroComponents.Style.dimmedFontColor
+                color: ZedcoinComponents.Style.dimmedFontColor
                 text: qsTr("Fee") + ":" + translationManager.emptyString
                 font.pixelSize: 15
             }
@@ -339,7 +339,7 @@ Rectangle {
 
                 Text {
                     property bool maliciousTxFee: parseFloat(root.transactionFee) > 0.01
-                    color: maliciousTxFee ? "red" : MoneroComponents.Style.defaultFontColor
+                    color: maliciousTxFee ? "red" : ZedcoinComponents.Style.defaultFontColor
                     font.pixelSize: maliciousTxFee ? 20 : 15
                     text: {
                         if (currentWallet) {
@@ -350,7 +350,7 @@ Rectangle {
                                     return qsTr("Calculating fee") + "..." +  translationManager.emptyString;
                                 }
                             } else {
-                                return root.transactionFee + " XMR" + (maliciousTxFee ? " (HIGH FEE)" : "")
+                                return root.transactionFee + " ZED" + (maliciousTxFee ? " (HIGH FEE)" : "")
                             }
                         } else {
                             return "";
@@ -361,7 +361,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     Layout.leftMargin: 8
-                    color: MoneroComponents.Style.buttonSecondaryTextColor
+                    color: ZedcoinComponents.Style.buttonSecondaryTextColor
                     visible: persistentSettings.fiatPriceEnabled && root.transactionFee
                     font.pixelSize: 15
                     text: showFiatConversion(root.transactionFee)
@@ -387,7 +387,7 @@ Rectangle {
 
                 Text {
                     id: bottomText
-                    color: MoneroComponents.Style.defaultFontColor
+                    color: ZedcoinComponents.Style.defaultFontColor
                     text: ""
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
@@ -411,7 +411,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 50
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: backButton
                     text: qsTr("Back") + translationManager.emptyString;
                     width: 200
@@ -424,7 +424,7 @@ Rectangle {
                     }
                 }
 
-                MoneroComponents.StandardButton {
+                ZedcoinComponents.StandardButton {
                     id: confirmButton
                     text: qsTr("Confirm") + translationManager.emptyString;
                     rightIcon: "qrc:///images/rightArrow.png"

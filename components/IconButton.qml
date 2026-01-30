@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -27,19 +27,19 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import QtQuick 2.9
-import "../components" as MoneroComponents
-import "../components/effects" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "../components/effects" as ZedcoinEffects
 
-MoneroEffects.ImageMask {
+ZedcoinEffects.ImageMask {
     id: button
     z: 666
-    color: MoneroComponents.Style.defaultFontColor
+    color: ZedcoinComponents.Style.defaultFontColor
     image: ""
 
     property alias tooltip: tooltip.text
     signal clicked(var mouse)
 
-    MoneroComponents.Tooltip {
+    ZedcoinComponents.Tooltip {
         id: tooltip
         anchors.fill: parent
         tooltipLeft: true

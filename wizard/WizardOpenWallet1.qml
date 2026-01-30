@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -32,14 +32,14 @@ import QtQuick.Layouts 1.2
 import QtQuick.Controls 2.0
 import QtGraphicalEffects 1.0
 import Qt.labs.folderlistmodel 2.1
-import moneroComponents.NetworkType 1.0
-import moneroComponents.WalletKeysFilesModel 1.0
+import zedcoinComponents.NetworkType 1.0
+import zedcoinComponents.WalletKeysFilesModel 1.0
 import FontAwesome 1.0
 
 import "../js/Wizard.js" as Wizard
 import "../components"
-import "../components" as MoneroComponents
-import "../components/effects/" as MoneroEffects
+import "../components" as ZedcoinComponents
+import "../components/effects/" as ZedcoinEffects
 
 Rectangle {
     id: wizardOpenWallet1
@@ -90,10 +90,10 @@ Rectangle {
                 columnSpacing: 20
                 columns: 2
 
-                MoneroComponents.TextPlain {
+                ZedcoinComponents.TextPlain {
                     Layout.fillWidth: true
                     text: qsTr("Recently opened") + ":" + translationManager.emptyString
-                    font.family: MoneroComponents.Style.fontLight.name
+                    font.family: ZedcoinComponents.Style.fontLight.name
                     font.pixelSize: 16
                 }
 
@@ -169,9 +169,9 @@ Rectangle {
                             else if(networktype === 2) return qsTr("Stagenet");
                             return "";
                         }
-                        color: item.focus || itemMouseArea.containsMouse ? MoneroComponents.Style.titleBarButtonHoverColor : "transparent"
+                        color: item.focus || itemMouseArea.containsMouse ? ZedcoinComponents.Style.titleBarButtonHoverColor : "transparent"
                         border.width: item.focus ? 3 : 0
-                        border.color: MoneroComponents.Style.inputBorderColorActive
+                        border.color: ZedcoinComponents.Style.inputBorderColorActive
 
                         Accessible.role: Accessible.ListItem
                         Accessible.name: {
@@ -192,13 +192,13 @@ Rectangle {
                             height: 1
                             width: parent.width
                             anchors.top: parent.top
-                            color: MoneroComponents.Style.appWindowBorderColor
+                            color: ZedcoinComponents.Style.appWindowBorderColor
                             visible: index <= 2  // top row
 
-                            MoneroEffects.ColorTransition {
+                            ZedcoinEffects.ColorTransition {
                                 targetObj: parent
-                                blackColor: MoneroComponents.Style._b_appWindowBorderColor
-                                whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+                                blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+                                whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
                             }
                         }
 
@@ -229,13 +229,13 @@ Rectangle {
                                     }
                                     visible: {
                                         if(!isOpenGL) return true;
-                                        if(MoneroComponents.Style.blackTheme) return true;
+                                        if(ZedcoinComponents.Style.blackTheme) return true;
                                         return false;
                                     }
                                 }
 
                                 Colorize {
-                                    visible: isOpenGL && !MoneroComponents.Style.blackTheme
+                                    visible: isOpenGL && !ZedcoinComponents.Style.blackTheme
                                     anchors.fill: icon
                                     source: icon
                                     lightness: 0.65 // +65%
@@ -265,8 +265,8 @@ Rectangle {
                                     Layout.preferredHeight: 26
                                     Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
                                     Layout.fillWidth: true
-                                    font.family: MoneroComponents.Style.fontRegular.name
-                                    color: MoneroComponents.Style.defaultFontColor
+                                    font.family: ZedcoinComponents.Style.fontRegular.name
+                                    color: ZedcoinComponents.Style.defaultFontColor
                                     font.pixelSize: 16
 
                                     wrapMode: Text.WordWrap
@@ -281,8 +281,8 @@ Rectangle {
                                     Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
                                     Layout.fillWidth: true
                                     text: item.networkType
-                                    font.family: MoneroComponents.Style.fontRegular.name
-                                    color: MoneroComponents.Style.dimmedFontColor
+                                    font.family: ZedcoinComponents.Style.fontRegular.name
+                                    color: ZedcoinComponents.Style.dimmedFontColor
                                     font.pixelSize: 14
 
                                     wrapMode: Text.WordWrap
@@ -301,13 +301,13 @@ Rectangle {
                         Rectangle {
                             height: 1
                             width: parent.width
-                            color: MoneroComponents.Style.appWindowBorderColor
+                            color: ZedcoinComponents.Style.appWindowBorderColor
                             anchors.bottom: parent.bottom
 
-                            MoneroEffects.ColorTransition {
+                            ZedcoinEffects.ColorTransition {
                                 targetObj: parent
-                                blackColor: MoneroComponents.Style._b_appWindowBorderColor
-                                whiteColor: MoneroComponents.Style._w_appWindowBorderColor
+                                blackColor: ZedcoinComponents.Style._b_appWindowBorderColor
+                                whiteColor: ZedcoinComponents.Style._w_appWindowBorderColor
                             }
                         }
 

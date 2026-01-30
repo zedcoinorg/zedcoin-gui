@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2024, The Zedcoin Project
 //
 // All rights reserved.
 //
@@ -146,7 +146,7 @@ QString TransactionInfo::destinations_formatted() const
     return destinations;
 }
 
-TransactionInfo::TransactionInfo(const Monero::TransactionInfo *pimpl, QObject *parent)
+TransactionInfo::TransactionInfo(const Zedcoin::TransactionInfo *pimpl, QObject *parent)
     : QObject(parent)
     , m_amount(pimpl->amount())
     , m_blockHeight(pimpl->blockHeight())
