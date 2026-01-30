@@ -20,12 +20,8 @@ namespace blocks
 
   const epee::span<const unsigned char> GetCheckpointsData(cryptonote::network_type network)
   {
-    const auto it = CheckpointsByNetwork.find(network);
-    if (it != CheckpointsByNetwork.end())
-    {
-      return it->second;
-    }
-    return nullptr;
+    (void)network;
+    return {};
   }
 
 }
