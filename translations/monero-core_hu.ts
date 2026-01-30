@@ -2240,8 +2240,8 @@ A jelszó a tárca beállításaiban megváltoztatható.</translation>
     </message>
     <message>
         <location filename="../pages/SharedRingDB.qml" line="116"/>
-        <source>In order to obscure which inputs in a Monero transaction are being spent, a third party should not be able to tell which inputs in a ring are already known to be spent. Being able to do so would weaken the protection afforded by ring signatures. If all but one of the inputs are known to be already spent, then the input being actually spent becomes apparent, thereby nullifying the effect of ring signatures, one of the three main layers of privacy protection Monero uses.&lt;br&gt;To help transactions avoid those inputs, a list of known spent ones can be used to avoid using them in new transactions. Such a list is maintained by the Monero project and is available on the getmonero.org website, and you can import this list here.&lt;br&gt;Alternatively, you can scan the blockchain (and the blockchain of key-reusing Monero clones) yourself using the monero-blockchain-mark-spent-outputs tool to create a list of known spent outputs.&lt;br&gt;</source>
-        <translation>Ahhoz, hogy a gyűrű aláírások anonimak maradjanak, ki kell zárni az olyan tranzakció bemeneteket amiket egy másik (Monero-klón) blokkláncon már felhasználtak. Ha ez nem történik meg, esetleg egy rosszindulatú harmadik fél nagyobb eséllyel megtippelheti, hogy melyik a valódi tranzakció bemenet. Ez gyengítheti a Monero anonimitásának háromszintű vedelmét. Ahhoz, hogy ezeket a bemeneteket kizárd a tranzakcióidból, a getmonero.org fenntart egy folyamatosan frissített listát róluk, amit letöltés után itt tudsz importálni. Másik lehetőséged a blokklánc átvizsgálása a monero-blockchain-mark-spent-outputs programmal és egy lista készítése.</translation>
+        <source>In order to obscure which inputs in a Monero transaction are being spent, a third party should not be able to tell which inputs in a ring are already known to be spent. Being able to do so would weaken the protection afforded by ring signatures. If all but one of the inputs are known to be already spent, then the input being actually spent becomes apparent, thereby nullifying the effect of ring signatures, one of the three main layers of privacy protection Monero uses.&lt;br&gt;To help transactions avoid those inputs, a list of known spent ones can be used to avoid using them in new transactions. Such a list is maintained by the Monero project and is available on the zedcoin.org website, and you can import this list here.&lt;br&gt;Alternatively, you can scan the blockchain (and the blockchain of key-reusing Monero clones) yourself using the monero-blockchain-mark-spent-outputs tool to create a list of known spent outputs.&lt;br&gt;</source>
+        <translation>Ahhoz, hogy a gyűrű aláírások anonimak maradjanak, ki kell zárni az olyan tranzakció bemeneteket amiket egy másik (Monero-klón) blokkláncon már felhasználtak. Ha ez nem történik meg, esetleg egy rosszindulatú harmadik fél nagyobb eséllyel megtippelheti, hogy melyik a valódi tranzakció bemenet. Ez gyengítheti a Monero anonimitásának háromszintű vedelmét. Ahhoz, hogy ezeket a bemeneteket kizárd a tranzakcióidból, a zedcoin.org fenntart egy folyamatosan frissített listát róluk, amit letöltés után itt tudsz importálni. Másik lehetőséged a blokklánc átvizsgálása a monero-blockchain-mark-spent-outputs programmal és egy lista készítése.</translation>
     </message>
     <message>
         <location filename="../pages/SharedRingDB.qml" line="134"/>
@@ -3266,8 +3266,8 @@ Egyszerű költési bizonylat esetén nem kell megadni a kedvezményezett címé
     </message>
     <message>
         <location filename="../components/UpdateDialog.qml" line="98"/>
-        <source>Please visit getmonero.org for details</source>
-        <translation>Látogassa meg a getmonero.org weboldalt részletekért</translation>
+        <source>Please visit zedcoin.org for details</source>
+        <translation>Látogassa meg a zedcoin.org weboldalt részletekért</translation>
     </message>
     <message>
         <location filename="../components/UpdateDialog.qml" line="102"/>
