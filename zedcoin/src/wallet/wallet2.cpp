@@ -10427,7 +10427,10 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   ptx.construction_data.use_rct = true;
   ptx.construction_data.rct_config = {
     rct::RangeProofPaddedBulletproof,
-    use_fork_rules(HF_VERSION_BULLETPROOF_PLUS, -10) ? 4 : 3
+    use_fork_rules(HF_VERSION_BULLETPROOF_PLUS, -10) ? 4
+      : use_fork_rules(HF_VERSION_CLSAG, -10) ? 3
+      : use_fork_rules(HF_VERSION_SMALLER_BP, -10) ? 2
+      : 1
   };
   ptx.construction_data.use_view_tags = use_fork_rules(get_view_tag_fork(), 0);
   ptx.construction_data.dests = dsts;
@@ -11183,9 +11186,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
   const bool bulletproof = use_fork_rules(get_bulletproof_fork(), 0);
   const bool bulletproof_plus = use_fork_rules(get_bulletproof_plus_fork(), 0);
   const bool clsag = use_fork_rules(get_clsag_fork(), 0);
+  const bool smaller_bp = use_fork_rules(HF_VERSION_SMALLER_BP, 0);
   const rct::RCTConfig rct_config {
     rct::RangeProofPaddedBulletproof,
-    bulletproof_plus ? 4 : 3
+    bulletproof_plus ? 4 : (clsag ? 3 : (smaller_bp ? 2 : 1))
   };
   const bool use_view_tags = use_fork_rules(get_view_tag_fork(), 0);
   std::unordered_set<crypto::public_key> valid_public_keys_cache;
@@ -11949,9 +11953,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
   const bool bulletproof = use_fork_rules(get_bulletproof_fork(), 0);
   const bool bulletproof_plus = use_fork_rules(get_bulletproof_plus_fork(), 0);
   const bool clsag = use_fork_rules(get_clsag_fork(), 0);
+  const bool smaller_bp = use_fork_rules(HF_VERSION_SMALLER_BP, 0);
   const rct::RCTConfig rct_config {
     rct::RangeProofPaddedBulletproof,
-    bulletproof_plus ? 4 : 3
+    bulletproof_plus ? 4 : (clsag ? 3 : (smaller_bp ? 2 : 1))
   };
   const bool use_view_tags = use_fork_rules(get_view_tag_fork(), 0);
   const uint64_t base_fee  = get_base_fee(priority);
@@ -12244,14 +12249,27 @@ bool wallet2::use_fork_rules(uint8_t version, int64_t early_blocks)
 {
   // TODO: How to get fork rule info from light wallet node?
   if(m_light_wallet)
-    return true;
+  {
+    // Be conservative for light wallets: only enable rules that are active now.
+    const uint8_t current_version = get_current_hard_fork();
+    return current_version >= version;
+  }
   uint64_t height, earliest_height;
   boost::optional<std::string> result = m_node_rpc_proxy.get_height(height);
   THROW_WALLET_EXCEPTION_IF(result, error::wallet_internal_error, "Failed to get height");
   result = m_node_rpc_proxy.get_earliest_height(version, earliest_height);
   THROW_WALLET_EXCEPTION_IF(result, error::wallet_internal_error, "Failed to get earliest fork height");
 
+  // If the daemon reports an unknown earliest height, don't enable future rules.
+  if (earliest_height == 0 && version > 1)
+  {
+    const uint8_t current_version = get_current_hard_fork();
+    return current_version >= version;
+  }
+
+  const uint8_t current_version = get_current_hard_fork();
   bool close_enough = (int64_t)height >= (int64_t)earliest_height - early_blocks && earliest_height != std::numeric_limits<uint64_t>::max(); // start using the rules that many blocks beforehand
+  close_enough = close_enough && current_version >= version;
   if (close_enough)
     LOG_PRINT_L2("Using v" << (unsigned)version << " rules");
   else
