@@ -1477,7 +1477,8 @@ namespace cryptonote
     res.is_background_mining_enabled = lMiner.get_is_background_mining_enabled();
     store_difficulty(m_core.get_blockchain_storage().get_difficulty_for_next_block(), res.difficulty, res.wide_difficulty, res.difficulty_top64);
     
-    res.block_target = m_core.get_blockchain_storage().get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+    const uint8_t hf_version = m_core.get_blockchain_storage().get_current_hard_fork_version();
+    res.block_target = hf_version < 2 ? DIFFICULTY_TARGET_V1 : (hf_version >= HF_VERSION_ZED_HF1 ? DIFFICULTY_TARGET_V3 : DIFFICULTY_TARGET_V2);
     if ( lMiner.is_mining() ) {
       res.speed = lMiner.get_speed();
       res.threads_count = lMiner.get_threads_count();

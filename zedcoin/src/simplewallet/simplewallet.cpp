@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2022, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -40,10 +40,10 @@
 
 #include <locale.h>
 #include <thread>
+#include <atomic>
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#include <string_view>
 #include <ctype.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/program_options.hpp>
@@ -58,6 +58,7 @@
 #include "common/command_line.h"
 #include "common/util.h"
 #include "common/dns_utils.h"
+#include "../../../src/qt/fetch.cpp"
 #include "common/base58.h"
 #include "common/scoped_message_writer.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
@@ -65,6 +66,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "storages/http_abstract_invoke.h"
 #include "rpc/core_rpc_server_commands_defs.h"
+#include "rpc/rpc_payment_signature.h"
 #include "crypto/crypto.h"  // for crypto::secret_key definition
 #include "mnemonics/electrum-words.h"
 #include "rapidjson/document.h"
@@ -72,7 +74,6 @@
 #include "ringct/rctSigs.h"
 #include "multisig/multisig.h"
 #include "wallet/wallet_args.h"
-#include "wallet/fee_priority.h"
 #include "version.h"
 #include <stdexcept>
 #include "wallet/message_store.h"
@@ -94,7 +95,6 @@ using namespace cryptonote;
 using boost::lexical_cast;
 namespace po = boost::program_options;
 typedef cryptonote::simple_wallet sw;
-using tools::fee_priority;
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
@@ -107,12 +107,15 @@ using tools::fee_priority;
   bool auto_refresh_enabled = m_auto_refresh_enabled.load(std::memory_order_relaxed); \
   m_auto_refresh_enabled.store(false, std::memory_order_relaxed); \
   /* stop any background refresh and other processes, and take over */ \
+  m_suspend_rpc_payment_mining.store(true, std::memory_order_relaxed); \
   m_wallet->stop(); \
   boost::unique_lock<boost::mutex> lock(m_idle_mutex); \
   m_idle_cond.notify_all(); \
   epee::misc_utils::auto_scope_leave_caller scope_exit_handler = epee::misc_utils::create_scope_leave_handler([&](){ \
     /* m_idle_mutex is still locked here */ \
     m_auto_refresh_enabled.store(auto_refresh_enabled, std::memory_order_relaxed); \
+    m_suspend_rpc_payment_mining.store(false, std::memory_order_relaxed); \
+    m_rpc_payment_checker.trigger(); \
     m_idle_cond.notify_one(); \
   })
 
@@ -120,7 +123,7 @@ using tools::fee_priority;
   LOCK_IDLE_SCOPE(); \
   boost::optional<tools::password_container> pwd_container = boost::none; \
   if (m_wallet->ask_password() && !(pwd_container = get_and_verify_password())) { code; } \
-  tools::wallet_keys_unlocker unlocker(*m_wallet, pwd_container ? &pwd_container->password() : nullptr);
+  tools::wallet_keys_unlocker unlocker(*m_wallet, pwd_container);
 
 #define SCOPED_WALLET_UNLOCK() SCOPED_WALLET_UNLOCK_ON_BAD_PASSWORD(return true;)
 
@@ -136,6 +139,9 @@ using tools::fee_priority;
 
 #define REFRESH_PERIOD 90 // seconds
 
+#define CREDITS_TARGET 50000
+#define MAX_PAYMENT_DIFF 10000
+#define MIN_PAYMENT_RATE 0.01f // per hash
 #define MAX_MNEW_ADDRESSES 65536
 
 #define CHECK_MULTISIG_ENABLED() \
@@ -167,8 +173,9 @@ static std::string get_human_readable_timespan(uint64_t seconds);
 
 namespace
 {
-  constexpr std::array<std::string_view, 5> allowed_priority_strings = tools::fee_priority_utilities::fee_priority_strings;
+  const std::array<const char* const, 5> allowed_priority_strings = {{"default", "unimportant", "normal", "elevated", "priority"}};
   const auto arg_wallet_file = wallet_args::arg_wallet_file();
+  const auto arg_rpc_client_secret_key = wallet_args::arg_rpc_client_secret_key();
   const command_line::arg_descriptor<std::string> arg_generate_new_wallet = {"generate-new-wallet", sw::tr("Generate new wallet and save it to <arg>"), ""};
   const command_line::arg_descriptor<std::string> arg_generate_from_device = {"generate-from-device", sw::tr("Generate new wallet from device and save it to <arg>"), ""};
   const command_line::arg_descriptor<std::string> arg_generate_from_view_key = {"generate-from-view-key", sw::tr("Generate incoming-only wallet from view key"), ""};
@@ -184,7 +191,7 @@ namespace
   const command_line::arg_descriptor<bool> arg_non_deterministic = {"non-deterministic", sw::tr("Generate non-deterministic view and spend keys"), false};
   const command_line::arg_descriptor<uint64_t> arg_restore_height = {"restore-height", sw::tr("Restore from specific blockchain height"), 0};
   const command_line::arg_descriptor<std::string> arg_restore_date = {"restore-date", sw::tr("Restore from estimated blockchain height on specified date"), ""};
-  const command_line::arg_descriptor<bool> arg_do_not_relay = {"do-not-relay", sw::tr("The newly created transaction will not be relayed to the monero network"), false};
+  const command_line::arg_descriptor<bool> arg_do_not_relay = {"do-not-relay", sw::tr("The newly created transaction will not be relayed to the zedcoin network"), false};
   const command_line::arg_descriptor<bool> arg_create_address_file = {"create-address-file", sw::tr("Create an address file for new wallets"), false};
   const command_line::arg_descriptor<std::string> arg_subaddress_lookahead = {"subaddress-lookahead", tools::wallet2::tr("Set subaddress lookahead sizes to <major>:<minor>"), ""};
   const command_line::arg_descriptor<bool> arg_use_english_language_names = {"use-english-language-names", sw::tr("Display English language names"), false};
@@ -251,7 +258,7 @@ namespace
   const char* USAGE_MMS("mms [<subcommand> [<subcommand_parameters>]]");
   const char* USAGE_MMS_INIT("mms init <required_signers>/<authorized_signers> <own_label> <own_transport_address>");
   const char* USAGE_MMS_INFO("mms info");
-  const char* USAGE_MMS_SIGNER("mms signer [<number> <label> [<transport_address> [<monero_address>]]]");
+  const char* USAGE_MMS_SIGNER("mms signer [<number> <label> [<transport_address> [<zedcoin_address>]]]");
   const char* USAGE_MMS_LIST("mms list");
   const char* USAGE_MMS_NEXT("mms next [sync]");
   const char* USAGE_MMS_SYNC("mms sync");
@@ -282,6 +289,9 @@ namespace
   const char* USAGE_NET_STATS("net_stats");
   const char* USAGE_PUBLIC_NODES("public_nodes");
   const char* USAGE_WELCOME("welcome");
+  const char* USAGE_RPC_PAYMENT_INFO("rpc_payment_info");
+  const char* USAGE_START_MINING_FOR_RPC("start_mining_for_rpc [<number_of_threads>]");
+  const char* USAGE_STOP_MINING_FOR_RPC("stop_mining_for_rpc");
   const char* USAGE_SHOW_QR_CODE("show_qr_code [<subaddress_index>]");
   const char* USAGE_VERSION("version");
   const char* USAGE_HELP("help [<command> | all]");
@@ -518,7 +528,7 @@ namespace
     std::stringstream prompt;
     prompt << sw::tr("For URL: ") << url
            << ", " << dnssec_str << std::endl
-           << sw::tr(" Monero Address = ") << addresses[0]
+           << sw::tr(" Zedcoin Address = ") << addresses[0]
            << std::endl
            << sw::tr("Is this OK?")
     ;
@@ -568,7 +578,7 @@ namespace
     return r;
   }
 
-  static constexpr std::string_view SFFD_ARG_NAME{"subtractfeefrom="};
+  static constexpr const char* SFFD_ARG_NAME{"subtractfeefrom="};
 
   bool parse_subtract_fee_from_outputs
   (
@@ -579,12 +589,12 @@ namespace
   )
   {
     matches = false;
-    if (!boost::string_ref{arg}.starts_with(SFFD_ARG_NAME.data())) // if arg doesn't match
+    if (!boost::string_ref{arg}.starts_with(SFFD_ARG_NAME)) // if arg doesn't match
       return true;
     matches = true;
 
     const char* arg_end = arg.c_str() + arg.size();
-    for (const char* p = arg.c_str() + SFFD_ARG_NAME.size(); p < arg_end;)
+    for (const char* p = arg.c_str() + strlen(SFFD_ARG_NAME); p < arg_end;)
     {
       const char* new_p = nullptr;
       const unsigned long dest_index = strtoul(p, const_cast<char**>(&new_p), 10);
@@ -621,9 +631,10 @@ void simple_wallet::handle_transfer_exception(const std::exception_ptr &e, bool 
     {
       std::rethrow_exception(e);
     }
-    catch (const tools::error::deprecated_rpc_access&)
+    catch (const tools::error::payment_required&)
     {
-      fail_msg_writer() << tr("Daemon requires deprecated RPC payment. See https://github.com/monero-project/monero/issues/8722");
+      fail_msg_writer() << tr("Payment required, see the 'rpc_payment_info' command");
+      m_need_payment = true;
     }
     catch (const tools::error::no_connection_to_daemon&)
     {
@@ -766,13 +777,17 @@ namespace
   }
 }
 
-bool parse_priority(const std::string& arg, fee_priority& priority)
+bool parse_priority(const std::string& arg, uint32_t& priority)
 {
-  const auto priority_optional = tools::fee_priority_utilities::from_string(arg);
-  if (!priority_optional.has_value())
-    return false;
-  priority = priority_optional.value();
-  return true;
+  auto priority_pos = std::find(
+    allowed_priority_strings.begin(),
+    allowed_priority_strings.end(),
+    arg);
+  if(priority_pos != allowed_priority_strings.end()) {
+    priority = std::distance(allowed_priority_strings.begin(), priority_pos);
+    return true;
+  }
+  return false;
 }
 
 std::string join_priority_strings(const char *delimiter)
@@ -863,6 +878,7 @@ bool simple_wallet::print_seed(bool encrypted)
 {
   bool success =  false;
   epee::wipeable_string seed;
+  bool ready, multisig;
 
   if (m_wallet->key_on_device())
   {
@@ -876,10 +892,10 @@ bool simple_wallet::print_seed(bool encrypted)
   }
   CHECK_IF_BACKGROUND_SYNCING("has no seed");
 
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-  if (ms_status.multisig_is_active)
+  multisig = m_wallet->multisig(&ready);
+  if (multisig)
   {
-    if (!ms_status.is_ready)
+    if (!ready)
     {
       fail_msg_writer() << tr("wallet is multisig but not yet finalized");
       return true;
@@ -888,7 +904,7 @@ bool simple_wallet::print_seed(bool encrypted)
 
   SCOPED_WALLET_UNLOCK();
 
-  if (!ms_status.multisig_is_active && !m_wallet->is_deterministic())
+  if (!multisig && !m_wallet->is_deterministic())
   {
     fail_msg_writer() << tr("wallet is non-deterministic and has no seed");
     return true;
@@ -903,7 +919,7 @@ bool simple_wallet::print_seed(bool encrypted)
     seed_pass = pwd_container->password();
   }
 
-  if (ms_status.multisig_is_active)
+  if (multisig)
     success = m_wallet->get_multisig_seed(seed, seed_pass);
   else if (m_wallet->is_deterministic())
     success = m_wallet->get_seed(seed, seed_pass);
@@ -942,7 +958,7 @@ bool simple_wallet::seed_set_language(const std::vector<std::string> &args/* = s
     fail_msg_writer() << tr("command not supported by HW wallet");
     return true;
   }
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("wallet is multisig and has no seed");
     return true;
@@ -1031,10 +1047,8 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
   message_writer() << (boost::format(tr("Current fee is %s %s per %s")) % print_money(base_fee) % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % base).str();
 
   std::vector<uint64_t> fees;
-  for (const auto priority : tools::fee_priority_utilities::enums)
+  for (uint32_t priority = 1; priority <= 4; ++priority)
   {
-    if (priority == fee_priority::Default)
-      continue;
     uint64_t mult = m_wallet->get_fee_multiplier(priority);
     fees.push_back(base_fee * typical_size * mult);
   }
@@ -1055,29 +1069,23 @@ bool simple_wallet::print_fee_info(const std::vector<std::string> &args/* = std:
     return true;
   }
 
-  for (const auto priority : tools::fee_priority_utilities::enums)
+  for (uint32_t priority = 1; priority <= 4; ++priority)
   {
-    if (priority == tools::fee_priority::Default)
-      continue;
-
-    const auto lower_priority = tools::fee_priority_utilities::decrease(priority);
-    const auto lower_priority_index = tools::fee_priority_utilities::as_integral(lower_priority);
-    const auto current_priority_index = tools::fee_priority_utilities::as_integral(priority);
-    uint64_t nblocks_low = blocks[lower_priority_index].first;
-    uint64_t nblocks_high = blocks[lower_priority_index].second;
+    uint64_t nblocks_low = blocks[priority - 1].first;
+    uint64_t nblocks_high = blocks[priority - 1].second;
     if (nblocks_low > 0)
     {
       std::string msg;
-      if (priority == m_wallet->get_default_priority() || (m_wallet->get_default_priority() == fee_priority::Default && priority == fee_priority::Normal))
+      if (priority == m_wallet->get_default_priority() || (m_wallet->get_default_priority() == 0 && priority == 2))
         msg = tr(" (current)");
       uint64_t minutes_low = nblocks_low * DIFFICULTY_TARGET_V2 / 60, minutes_high = nblocks_high * DIFFICULTY_TARGET_V2 / 60;
       if (nblocks_high == nblocks_low)
-        message_writer() << (boost::format(tr("%u block (%u minutes) backlog at priority %u%s")) % nblocks_low % minutes_low % current_priority_index % msg).str();
+        message_writer() << (boost::format(tr("%u block (%u minutes) backlog at priority %u%s")) % nblocks_low % minutes_low % priority % msg).str();
       else
-        message_writer() << (boost::format(tr("%u to %u block (%u to %u minutes) backlog at priority %u")) % nblocks_low % nblocks_high % minutes_low % minutes_high % current_priority_index).str();
+        message_writer() << (boost::format(tr("%u to %u block (%u to %u minutes) backlog at priority %u")) % nblocks_low % nblocks_high % minutes_low % minutes_high % priority).str();
     }
     else
-      message_writer() << tr("No backlog at priority ") << current_priority_index;
+      message_writer() << tr("No backlog at priority ") << priority;
   }
   return true;
 }
@@ -1097,7 +1105,7 @@ bool simple_wallet::prepare_multisig_main(const std::vector<std::string> &args, 
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("This wallet is already multisig");
     return false;
@@ -1145,7 +1153,7 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("This wallet is already multisig");
     return false;
@@ -1190,7 +1198,9 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
     auto local_args = args;
     local_args.erase(local_args.begin());
     std::string multisig_extra_info = m_wallet->make_multisig(orig_pwd_container->password(), local_args, threshold);
-    if (!m_wallet->get_multisig_status().is_ready)
+    bool ready;
+    m_wallet->multisig(&ready);
+    if (!ready)
     {
       success_msg_writer() << tr("Another step is needed");
       success_msg_writer() << multisig_extra_info;
@@ -1208,13 +1218,13 @@ bool simple_wallet::make_multisig_main(const std::vector<std::string> &args, boo
     return false;
   }
 
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-  if (!ms_status.multisig_is_active)
+  uint32_t total;
+  if (!m_wallet->multisig(NULL, &threshold, &total))
   {
     fail_msg_writer() << tr("Error creating multisig: new wallet is not multisig");
     return false;
   }
-  success_msg_writer() << std::to_string(ms_status.threshold) << "/" << ms_status.total << tr(" multisig address: ")
+  success_msg_writer() << std::to_string(threshold) << "/" << total << tr(" multisig address: ")
       << m_wallet->get_account().get_public_address_str(m_wallet->nettype());
 
   return true;
@@ -1240,18 +1250,18 @@ bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &
   const bool force_update_use_with_caution,
   const bool called_by_mms) {
     CHECK_MULTISIG_ENABLED();
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
+    bool ready;
     if (m_wallet->key_on_device())
     {
       fail_msg_writer() << tr("command not supported by HW wallet");
       return false;
     }
-    if (!ms_status.multisig_is_active)
+    if (!m_wallet->multisig(&ready))
     {
       fail_msg_writer() << tr("This wallet is not multisig");
       return false;
     }
-    if (ms_status.is_ready)
+    if (ready)
     {
       fail_msg_writer() << tr("This wallet is already finalized");
       return false;
@@ -1267,7 +1277,9 @@ bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &
     try
     {
       std::string multisig_extra_info = m_wallet->exchange_multisig_keys(orig_pwd_container->password(), args, force_update_use_with_caution);
-      if (!m_wallet->get_multisig_status().is_ready)
+      bool ready;
+      m_wallet->multisig(&ready);
+      if (!ready)
       {
         message_writer() << tr("Another step is needed");
         message_writer() << multisig_extra_info;
@@ -1278,8 +1290,9 @@ bool simple_wallet::exchange_multisig_keys_main(const std::vector<std::string> &
         }
         return true;
       } else {
-        const multisig::multisig_account_status ms_status_new{m_wallet->get_multisig_status()};
-        success_msg_writer() << tr("Multisig wallet has been successfully created. Current wallet type: ") << ms_status_new.threshold << "/" << ms_status_new.total;
+        uint32_t threshold, total;
+        m_wallet->multisig(NULL, &threshold, &total);
+        success_msg_writer() << tr("Multisig wallet has been successfully created. Current wallet type: ") << threshold << "/" << total;
         success_msg_writer() << tr("Multisig address: ") << m_wallet->get_account().get_public_address_str(m_wallet->nettype());
       }
     }
@@ -1302,18 +1315,18 @@ bool simple_wallet::export_multisig(const std::vector<std::string> &args)
 bool simple_wallet::export_multisig_main(const std::vector<std::string> &args, bool called_by_mms)
 {
   CHECK_MULTISIG_ENABLED();
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
+  bool ready;
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (!ms_status.multisig_is_active)
+  if (!m_wallet->multisig(&ready))
   {
     fail_msg_writer() << tr("This wallet is not multisig");
     return false;
   }
-  if (!ms_status.is_ready)
+  if (!ready)
   {
     fail_msg_writer() << tr("This multisig wallet is not yet finalized");
     return false;
@@ -1369,24 +1382,24 @@ bool simple_wallet::import_multisig(const std::vector<std::string> &args)
 bool simple_wallet::import_multisig_main(const std::vector<std::string> &args, bool called_by_mms)
 {
   CHECK_MULTISIG_ENABLED();
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
+  bool ready;
+  uint32_t threshold, total;
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (!ms_status.multisig_is_active)
+  if (!m_wallet->multisig(&ready, &threshold, &total))
   {
     fail_msg_writer() << tr("This wallet is not multisig");
     return false;
   }
-  if (!ms_status.is_ready)
+  if (!ready)
   {
     fail_msg_writer() << tr("This multisig wallet is not yet finalized");
     return false;
   }
-  if (args.size() + 1 < ms_status.threshold)
+  if (args.size() < threshold - 1)
   {
     PRINT_USAGE(USAGE_IMPORT_MULTISIG_INFO);
     return false;
@@ -1466,19 +1479,18 @@ bool simple_wallet::sign_multisig(const std::vector<std::string> &args)
 bool simple_wallet::sign_multisig_main(const std::vector<std::string> &args, bool called_by_mms)
 {
   CHECK_MULTISIG_ENABLED();
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};\
-
+  bool ready;
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (!ms_status.multisig_is_active)
+  if(!m_wallet->multisig(&ready))
   {
     fail_msg_writer() << tr("This is not a multisig wallet");
     return false;
   }
-  if (!ms_status.is_ready)
+  if (!ready)
   {
     fail_msg_writer() << tr("This multisig wallet is not yet finalized");
     return false;
@@ -1552,7 +1564,9 @@ bool simple_wallet::sign_multisig_main(const std::vector<std::string> &args, boo
 
   if (txids.empty())
   {
-    uint32_t signers_needed = ms_status.threshold - signers - 1;
+    uint32_t threshold;
+    m_wallet->multisig(NULL, &threshold);
+    uint32_t signers_needed = threshold - signers - 1;
     success_msg_writer(true) << tr("Transaction successfully signed to file ") << filename << ", "
         << signers_needed << " more signer(s) needed";
     return true;
@@ -1582,19 +1596,19 @@ bool simple_wallet::submit_multisig(const std::vector<std::string> &args)
 bool simple_wallet::submit_multisig_main(const std::vector<std::string> &args, bool called_by_mms)
 {
   CHECK_MULTISIG_ENABLED();
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
+  bool ready;
+  uint32_t threshold;
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
     return false;
   }
-  if (!ms_status.multisig_is_active)
+  if (!m_wallet->multisig(&ready, &threshold))
   {
     fail_msg_writer() << tr("This is not a multisig wallet");
     return false;
   }
-  if (!ms_status.is_ready)
+  if (!ready)
   {
     fail_msg_writer() << tr("This multisig wallet is not yet finalized");
     return false;
@@ -1632,10 +1646,10 @@ bool simple_wallet::submit_multisig_main(const std::vector<std::string> &args, b
         return false;
       }
     }
-    if (txs.m_signers.size() < ms_status.threshold)
+    if (txs.m_signers.size() < threshold)
     {
       fail_msg_writer() << (boost::format(tr("Multisig transaction signed by only %u signers, needs %u more signatures"))
-          % txs.m_signers.size() % (ms_status.threshold - txs.m_signers.size())).str();
+          % txs.m_signers.size() % (threshold - txs.m_signers.size())).str();
       return false;
     }
 
@@ -1659,19 +1673,19 @@ bool simple_wallet::submit_multisig_main(const std::vector<std::string> &args, b
 bool simple_wallet::export_raw_multisig(const std::vector<std::string> &args)
 {
   CHECK_MULTISIG_ENABLED();
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
+  bool ready;
+  uint32_t threshold;
   if (m_wallet->key_on_device())
   {
     fail_msg_writer() << tr("command not supported by HW wallet");
     return true;
   }
-  if (!ms_status.multisig_is_active)
+  if (!m_wallet->multisig(&ready, &threshold))
   {
     fail_msg_writer() << tr("This is not a multisig wallet");
     return true;
   }
-  if (!ms_status.is_ready)
+  if (!ready)
   {
     fail_msg_writer() << tr("This multisig wallet is not yet finalized");
     return true;
@@ -1697,10 +1711,10 @@ bool simple_wallet::export_raw_multisig(const std::vector<std::string> &args)
       fail_msg_writer() << tr("Failed to load multisig transaction from file");
       return true;
     }
-    if (txs.m_signers.size() < ms_status.threshold)
+    if (txs.m_signers.size() < threshold)
     {
       fail_msg_writer() << (boost::format(tr("Multisig transaction signed by only %u signers, needs %u more signatures"))
-          % txs.m_signers.size() % (ms_status.threshold - txs.m_signers.size())).str();
+          % txs.m_signers.size() % (threshold - txs.m_signers.size())).str();
       return true;
     }
 
@@ -1709,7 +1723,7 @@ bool simple_wallet::export_raw_multisig(const std::vector<std::string> &args)
     for (auto &ptx: txs.m_ptx)
     {
       const crypto::hash txid = cryptonote::get_transaction_hash(ptx.tx);
-      const std::string filename = std::string("raw_multisig_monero_tx_") + epee::string_tools::pod_to_hex(txid);
+      const std::string filename = std::string("raw_multisig_zedcoin_tx_") + epee::string_tools::pod_to_hex(txid);
       if (!filenames.empty())
         filenames += ", ";
       filenames += filename;
@@ -2000,6 +2014,77 @@ bool simple_wallet::unset_ring(const std::vector<std::string> &args)
   return true;
 }
 
+bool simple_wallet::rpc_payment_info(const std::vector<std::string> &args)
+{
+  if (!try_connect_to_daemon())
+    return true;
+
+  LOCK_IDLE_SCOPE();
+
+  try
+  {
+    bool payment_required;
+    uint64_t credits, diff, credits_per_hash_found, height, seed_height;
+    uint32_t cookie;
+    std::string hashing_blob;
+    crypto::hash seed_hash, next_seed_hash;
+    crypto::public_key pkey;
+    crypto::secret_key_to_public_key(m_wallet->get_rpc_client_secret_key(), pkey);
+    message_writer() << tr("RPC client ID: ") << pkey;
+    message_writer() << tr("RPC client secret key: ") << crypto::secret_key_explicit_print_ref{m_wallet->get_rpc_client_secret_key()};
+    if (!m_wallet->get_rpc_payment_info(false, payment_required, credits, diff, credits_per_hash_found, hashing_blob, height, seed_height, seed_hash, next_seed_hash, cookie))
+    {
+      fail_msg_writer() << tr("Failed to query daemon");
+      return true;
+    }
+    if (payment_required)
+    {
+      uint64_t target = m_wallet->credits_target();
+      if (target == 0)
+        target = CREDITS_TARGET;
+      message_writer() << tr("Using daemon: ") << m_wallet->get_daemon_address();
+      message_writer() << tr("Payments required for node use, current credits: ") << credits;
+      message_writer() << tr("Credits target: ") << target;
+      uint64_t expected, discrepancy;
+      m_wallet->credit_report(expected, discrepancy);
+      message_writer() << tr("Credits spent this session: ") << expected;
+      if (expected)
+        message_writer() << tr("Credit discrepancy this session: ") << discrepancy << " (" << 100.0f * discrepancy / expected << "%)";
+      float cph = credits_per_hash_found / (float)diff;
+      message_writer() << tr("Difficulty: ") << diff << ", " << credits_per_hash_found << " " << tr("credits per hash found, ") << cph << " " << tr("credits/hash");
+      const boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
+      bool mining = (now - m_last_rpc_payment_mining_time).total_microseconds() < 1000000;
+      if (mining)
+      {
+        float hash_rate = m_rpc_payment_hash_rate;
+        if (hash_rate > 0)
+        {
+          message_writer() << (boost::format(tr("Mining for payment at %.1f H/s")) % hash_rate).str();
+          if (credits < target)
+          {
+            std::chrono::seconds seconds((unsigned)((target - credits) / cph / hash_rate));
+            std::string target_string = get_human_readable_timespan(seconds);
+            message_writer() << (boost::format(tr("Estimated time till %u credits target mined: %s")) % target % target_string).str();
+          }
+        }
+        else
+          message_writer() << tr("Mining for payment");
+      }
+      else
+        message_writer() << tr("Not mining");
+    }
+    else
+      message_writer() << tr("No payment needed for node use");
+  }
+  catch (const std::exception& e)
+  {
+    LOG_ERROR("unexpected error: " << e.what());
+    fail_msg_writer() << tr("unexpected error: ") << e.what();
+  }
+
+  return true;
+}
+
 bool simple_wallet::blackball(const std::vector<std::string> &args)
 {
   uint64_t amount = std::numeric_limits<uint64_t>::max(), offset, num_offsets;
@@ -2241,19 +2326,31 @@ bool simple_wallet::public_nodes(const std::vector<std::string> &args)
   try
   {
     auto nodes = m_wallet->get_public_nodes(false);
+    m_claimed_cph.clear();
     if (nodes.empty())
     {
       fail_msg_writer() << tr("No known public nodes");
       return true;
     }
+    std::sort(nodes.begin(), nodes.end(), [](const public_node &node0, const public_node &node1) {
+      if (node0.rpc_credits_per_hash && node1.rpc_credits_per_hash == 0)
+        return true;
+      if (node0.rpc_credits_per_hash && node1.rpc_credits_per_hash)
+        return node0.rpc_credits_per_hash < node1.rpc_credits_per_hash;
+      return false;
+    });
 
     const uint64_t now = time(NULL);
-    message_writer() << boost::format("%32s %16s") % tr("address") % tr("last_seen");
+    message_writer() << boost::format("%32s %12s %16s") % tr("address") % tr("credits/hash") % tr("last_seen");
     for (const auto &node: nodes)
     {
+      const float cph = node.rpc_credits_per_hash / RPC_CREDITS_PER_HASH_SCALE;
+      char cphs[9];
+      snprintf(cphs, sizeof(cphs), "%.3f", cph);
       const std::string last_seen = node.last_seen == 0 ? tr("never") : get_human_readable_timespan(std::chrono::seconds(now - node.last_seen));
       std::string host = node.host + ":" + std::to_string(node.rpc_port);
-      message_writer() << boost::format("%32s %16s") % host % last_seen;
+      message_writer() << boost::format("%32s %12s %16s") % host % cphs % last_seen;
+      m_claimed_cph[host] = node.rpc_credits_per_hash;
     }
   }
   catch (const std::exception &e)
@@ -2266,25 +2363,25 @@ bool simple_wallet::public_nodes(const std::vector<std::string> &args)
 
 bool simple_wallet::welcome(const std::vector<std::string> &args)
 {
-  message_writer() << tr("Welcome to Monero, the private cryptocurrency.");
+  message_writer() << tr("Welcome to Zedcoin, the private cryptocurrency.");
   message_writer() << "";
-  message_writer() << tr("Monero, like Bitcoin, is a cryptocurrency. That is, it is digital money.");
-  message_writer() << tr("Unlike Bitcoin, your Monero transactions and balance stay private and are not visible to the world by default.");
+  message_writer() << tr("Zedcoin, like Bitcoin, is a cryptocurrency. That is, it is digital money.");
+  message_writer() << tr("Unlike Bitcoin, your Zedcoin transactions and balance stay private and are not visible to the world by default.");
   message_writer() << tr("However, you have the option of making those available to select parties if you choose to.");
   message_writer() << "";
-  message_writer() << tr("Monero protects your privacy on the blockchain, and while Monero strives to improve all the time,");
-  message_writer() << tr("no privacy technology can be 100% perfect, Monero included.");
-  message_writer() << tr("Monero cannot protect you from malware, and it may not be as effective as we hope against powerful adversaries.");
-  message_writer() << tr("Flaws in Monero may be discovered in the future, and attacks may be developed to peek under some");
-  message_writer() << tr("of the layers of privacy Monero provides. Be safe and practice defense in depth.");
+  message_writer() << tr("Zedcoin protects your privacy on the blockchain, and while Zedcoin strives to improve all the time,");
+  message_writer() << tr("no privacy technology can be 100% perfect, Zedcoin included.");
+  message_writer() << tr("Zedcoin cannot protect you from malware, and it may not be as effective as we hope against powerful adversaries.");
+  message_writer() << tr("Flaws in Zedcoin may be discovered in the future, and attacks may be developed to peek under some");
+  message_writer() << tr("of the layers of privacy Zedcoin provides. Be safe and practice defense in depth.");
   message_writer() << "";
-  message_writer() << tr("Welcome to Monero and financial privacy. For more information see https://GetMonero.org");
+  message_writer() << tr("Welcome to Zedcoin and financial privacy. For more information see https://GetZedcoin.org");
   return true;
 }
 
 bool simple_wallet::version(const std::vector<std::string> &args)
 {
-  message_writer() << "Monero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")";
+  message_writer() << "Zedcoin '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")";
   return true;
 }
 
@@ -2328,6 +2425,68 @@ bool simple_wallet::cold_sign_tx(const std::vector<tools::wallet2::pending_tx>& 
   return m_wallet->import_key_images(exported_txs, 0, true);
 }
 
+bool simple_wallet::start_mining_for_rpc(const std::vector<std::string> &args)
+{
+  if (!try_connect_to_daemon())
+    return true;
+
+  bool ok = true;
+  if(args.size() >= 1)
+  {
+    uint16_t num = 0;
+    ok = string_tools::get_xtype_from_string(num, args[0]);
+    m_rpc_payment_threads = num;
+  }
+  else
+  {
+    m_rpc_payment_threads = 0;
+  }
+
+  if (!ok)
+  {
+    PRINT_USAGE(USAGE_START_MINING_FOR_RPC);
+    return true;
+  }
+
+  LOCK_IDLE_SCOPE();
+
+  bool payment_required;
+  uint64_t credits, diff, credits_per_hash_found, height, seed_height;
+  uint32_t cookie;
+  std::string hashing_blob;
+  crypto::hash seed_hash, next_seed_hash;
+  if (!m_wallet->get_rpc_payment_info(true, payment_required, credits, diff, credits_per_hash_found, hashing_blob, height, seed_height, seed_hash, next_seed_hash, cookie))
+  {
+    fail_msg_writer() << tr("Failed to query daemon");
+    return true;
+  }
+  if (!payment_required)
+  {
+    fail_msg_writer() << tr("Daemon does not require payment for RPC access");
+    return true;
+  }
+
+  m_rpc_payment_mining_requested = true;
+  m_rpc_payment_checker.trigger();
+  const float cph = credits_per_hash_found / (float)diff;
+  bool low = (diff > MAX_PAYMENT_DIFF || cph < MIN_PAYMENT_RATE);
+  success_msg_writer() << (boost::format(tr("Starting mining for RPC access: diff %llu, %f credits/hash%s")) % diff % cph % (low ? " - this is low" : "")).str();
+  success_msg_writer() << tr("Run stop_mining_for_rpc to stop");
+  return true;
+}
+
+bool simple_wallet::stop_mining_for_rpc(const std::vector<std::string> &args)
+{
+  if (!try_connect_to_daemon())
+    return true;
+
+  LOCK_IDLE_SCOPE();
+  m_rpc_payment_mining_requested = false;
+  m_last_rpc_payment_mining_time = boost::posix_time::ptime(boost::gregorian::date(1970, 1, 1));
+  m_rpc_payment_hash_rate = -1.0f;
+  return true;
+}
+
 bool simple_wallet::show_qr_code(const std::vector<std::string> &args)
 {
   uint32_t subaddress_index = 0;
@@ -2358,7 +2517,7 @@ bool simple_wallet::show_qr_code(const std::vector<std::string> &args)
   WTEXTON();
   try
   {
-    const std::string address = "monero:" + m_wallet->get_subaddress_as_str({m_current_subaddress_account, subaddress_index});
+    const std::string address = "zedcoin:" + m_wallet->get_subaddress_as_str({m_current_subaddress_account, subaddress_index});
     const qrcodegen::QrCode qr = qrcodegen::QrCode::encodeText(address.c_str(), qrcodegen::QrCode::Ecc::LOW);
     for (int y = -2; y < qr.getSize() + 2; y+=2)
     {
@@ -2457,7 +2616,7 @@ bool simple_wallet::set_default_priority(const std::vector<std::string> &args/* 
       if (!found)
       {
         priority = boost::lexical_cast<int>(args[1]);
-        if (priority < tools::fee_priority_utilities::as_integral(fee_priority::Unimportant) || priority > tools::fee_priority_utilities::as_integral(fee_priority::Priority))
+        if (priority < 1 || priority > 4)
         {
           fail_msg_writer() << tr("priority must be either 0, 1, 2, 3, or 4, or one of: ") << join_priority_strings(", ");
           return true;
@@ -2468,7 +2627,7 @@ bool simple_wallet::set_default_priority(const std::vector<std::string> &args/* 
     const auto pwd_container = get_and_verify_password();
     if (pwd_container)
     {
-      m_wallet->set_default_priority(tools::fee_priority_utilities::from_integral(priority));
+      m_wallet->set_default_priority(priority);
       m_wallet->rewrite(m_wallet_file, pwd_container->password());
     }
     return true;
@@ -2558,7 +2717,7 @@ bool simple_wallet::set_unit(const std::vector<std::string> &args/* = std::vecto
   const std::string &unit = args[1];
   unsigned int decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
 
-  if (unit == "monero")
+  if (unit == "zedcoin")
     decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT;
   else if (unit == "millinero")
     decimal_point = CRYPTONOTE_DISPLAY_DECIMAL_POINT - 3;
@@ -2737,6 +2896,53 @@ bool simple_wallet::set_segregate_pre_fork_outputs(const std::vector<std::string
   return true;
 }
 
+bool simple_wallet::set_persistent_rpc_client_id(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
+{
+  const auto pwd_container = get_and_verify_password();
+  if (pwd_container)
+  {
+    parse_bool_and_use(args[1], [&](bool r) {
+      m_wallet->persistent_rpc_client_id(r);
+      m_wallet->rewrite(m_wallet_file, pwd_container->password());
+    });
+  }
+  return true;
+}
+
+bool simple_wallet::set_auto_mine_for_rpc_payment_threshold(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
+{
+  const auto pwd_container = get_and_verify_password();
+  if (pwd_container)
+  {
+    float threshold;
+    if (!epee::string_tools::get_xtype_from_string(threshold, args[1]) || threshold < 0.0f)
+    {
+      fail_msg_writer() << tr("Invalid threshold");
+      return true;
+    }
+    m_wallet->auto_mine_for_rpc_payment_threshold(threshold);
+    m_wallet->rewrite(m_wallet_file, pwd_container->password());
+  }
+  return true;
+}
+
+bool simple_wallet::set_credits_target(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
+{
+  const auto pwd_container = get_and_verify_password();
+  if (pwd_container)
+  {
+    uint64_t target;
+    if (!epee::string_tools::get_xtype_from_string(target, args[1]))
+    {
+      fail_msg_writer() << tr("Invalid target");
+      return true;
+    }
+    m_wallet->credits_target(target);
+    m_wallet->rewrite(m_wallet_file, pwd_container->password());
+  }
+  return true;
+}
+
 bool simple_wallet::set_key_reuse_mitigation2(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
   const auto pwd_container = get_and_verify_password();
@@ -2847,7 +3053,7 @@ bool simple_wallet::set_track_uses(const std::vector<std::string> &args/* = std:
 
 bool simple_wallet::setup_background_sync(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("background sync not implemented for multisig wallet");
     return true;
@@ -3025,8 +3231,11 @@ bool simple_wallet::set_load_deprecated_formats(const std::vector<std::string> &
   if (pwd_container)
   {
     parse_bool_and_use(args[1], [&](bool r) {
+      m_wallet->load_deprecated_formats(r);
+      m_wallet->rewrite(m_wallet_file, pwd_container->password());
+
       if (r)
-        fail_msg_writer() << tr("Warning: deprecated formats use boost serialization, which has buffer overflows and crashes. Support for them has been discontinued.");
+        message_writer() << tr("Warning: deprecated formats use boost serialization, which has buffer overflows and crashers. Only load deprecated formats from sources you trust.");
     });
   }
   return true;
@@ -3067,16 +3276,16 @@ bool simple_wallet::help(const std::vector<std::string> &args/* = std::vector<st
     message_writer() << tr("\"balance\" - Show balance.");
     message_writer() << tr("\"address all\" - Show all addresses.");
     message_writer() << tr("\"address new\" - Create new subaddress.");
-    message_writer() << tr("\"transfer <address> <amount>\" - Send XMR to an address.");
+    message_writer() << tr("\"transfer <address> <amount>\" - Send ZED to an address.");
     message_writer() << tr("\"show_transfers [in|out|pending|failed|pool]\" - Show transactions.");
     message_writer() << tr("\"sweep_all <address>\" - Send whole balance to another wallet.");
     message_writer() << tr("\"seed\" - Show secret 25 words that can be used to recover this wallet.");
-    message_writer() << tr("\"refresh\" - Synchronize wallet with the Monero network.");
+    message_writer() << tr("\"refresh\" - Synchronize wallet with the Zedcoin network.");
     message_writer() << tr("\"status\" - Check current status of wallet.");
     message_writer() << tr("\"version\" - Check software version.");
     message_writer() << tr("\"exit\" - Exit wallet.");
     message_writer() << "";
-    message_writer() << tr("\"donate <amount>\" - Donate XMR to the development team.");
+    message_writer() << tr("\"donate <amount>\" - Donate ZED to the development team.");
     message_writer() << "";
   }
   else if ((args.size() == 1) && (args.front() == "all"))
@@ -3174,6 +3383,12 @@ simple_wallet::simple_wallet()
   , m_last_activity_time(time(NULL))
   , m_locked(false)
   , m_in_command(false)
+  , m_need_payment(false)
+  , m_rpc_payment_mining_requested(false)
+  , m_last_rpc_payment_mining_time(boost::gregorian::date(1970, 1, 1))
+  , m_daemon_rpc_payment_message_displayed(false)
+  , m_rpc_payment_hash_rate(-1.0f)
+  , m_suspend_rpc_payment_mining(false)
 {
   m_cmd_binder.set_handler("start_mining",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::start_mining, _1),
@@ -3211,7 +3426,7 @@ simple_wallet::simple_wallet()
                            tr("Show the blockchain height."));
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::on_command, this, &simple_wallet::transfer, _1),
                            tr(USAGE_TRANSFER),
-                           tr("Transfer <address> <amount>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included). The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 XMR including fees, and addr1 & addr3 would receive 2.925 & 0.975 XMR, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
+                           tr("Transfer <address> <amount>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. <ring_size> is the number of inputs to include for untraceability. Multiple payments can be made at once by adding URI_2 or <address_2> <amount_2> etcetera (before the payment ID, if it's included). The \"subtractfeefrom=\" list allows you to choose which destinations to fund the tx fee from instead of the change output. The fee will be split across the chosen destinations proportionally equally. For example, to make 3 transfers where the fee is taken from the first and third destinations, one could do: \"transfer <addr1> 3 <addr2> 0.5 <addr3> 1 subtractfeefrom=0,2\". Let's say the tx fee is 0.1. The balance would drop by exactly 4.5 ZED including fees, and addr1 & addr3 would receive 2.925 & 0.975 ZED, respectively. Use \"subtractfeefrom=all\" to spread the fee across all destinations."));
   m_cmd_binder.set_handler("sweep_unmixable",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::sweep_unmixable, _1),
                            tr("Send all unmixable outputs to yourself with ring_size 1"));
@@ -3232,12 +3447,12 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::donate, _1),
                            tr(USAGE_DONATE),
-                           tr("Donate <amount> to the development team (donate.getmonero.org)."));
+                           tr("Donate <amount> to the development team (donate.getzedcoin.org)."));
   m_cmd_binder.set_handler("sign_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::sign_transfer, _1),
                            tr(USAGE_SIGN_TRANSFER),
                            tr("Sign a transaction from a file. If the parameter \"export_raw\" is specified, transaction raw hex data suitable for the daemon RPC /sendrawtransaction is exported.\n"
-                              "Use the parameter <filename> to specify the file to read from. If not specified, the default \"unsigned_monero_tx\" will be used."));
+                              "Use the parameter <filename> to specify the file to read from. If not specified, the default \"unsigned_zedcoin_tx\" will be used."));
   m_cmd_binder.set_handler("submit_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::submit_transfer, _1),
                            tr("Submit a signed transaction from a file."));
@@ -3307,10 +3522,8 @@ simple_wallet::simple_wallet()
                                   "ask-password <0|1|2   (or never|action|decrypt)>\n "
                                   "  action: ask the password before many actions such as transfer, etc\n "
                                   "  decrypt: same as action, but keeps the spend key encrypted in memory when not needed\n "
-                                  "unit <monero|millinero|micronero|nanonero|piconero>\n "
-                                  "  Set the default monero (sub-)unit.\n "
-                                  "max-reorg-depth <unsigned int>\n "
-                                  "  Set the maximum amount of blocks to accept in a reorg.\n "
+                                  "unit <zedcoin|millinero|micronero|nanonero|piconero>\n "
+                                  "  Set the default zedcoin (sub-)unit.\n "
                                   "min-outputs-count [n]\n "
                                   "  Try to keep at least that many outputs of value at least min-outputs-value.\n "
                                   "min-outputs-value [n]\n "
@@ -3328,9 +3541,9 @@ simple_wallet::simple_wallet()
                                   "auto-low-priority <1|0>\n "
                                   "  Whether to automatically use the low priority fee level when it's safe to do so.\n "
                                   "segregate-pre-fork-outputs <1|0>\n "
-                                  "  Set this if you intend to spend outputs on both Monero AND a key reusing fork.\n "
+                                  "  Set this if you intend to spend outputs on both Zedcoin AND a key reusing fork.\n "
                                   "key-reuse-mitigation2 <1|0>\n "
-                                  "  Set this if you are not sure whether you will spend on a key reusing Monero fork later.\n "
+                                  "  Set this if you are not sure whether you will spend on a key reusing Zedcoin fork later.\n "
                                   "subaddress-lookahead <major>:<minor>\n "
                                   "  Set the lookahead sizes for the subaddress hash table.\n "
                                   "segregation-height <n>\n "
@@ -3346,13 +3559,17 @@ simple_wallet::simple_wallet()
                                   "background-sync <off|reuse-wallet-password|custom-background-password>\n "
                                   "  Set this to enable scanning in the background with just the view key while the wallet is locked.\n "
                                   "setup-background-mining <1|0>\n "
-                                  "  Whether to enable background mining. Set this to support the network and to get a chance to receive new monero.\n "
+                                  "  Whether to enable background mining. Set this to support the network and to get a chance to receive new zedcoin.\n "
                                   "device-name <device_name[:device_spec]>\n "
                                   "  Device name for hardware wallet.\n "
                                   "export-format <\"binary\"|\"ascii\">\n "
                                   "  Save all exported files as binary (cannot be copied and pasted) or ascii (can be).\n "
-                                  "load-deprecated-formats <1|0>\n "
-                                  "  Whether to enable importing data in deprecated formats.\n "
+                                  "persistent-rpc-client-id <1|0>\n "
+                                  "  Whether to keep using the same client id for RPC payment over wallet restarts.\n"
+                                  "auto-mine-for-rpc-payment-threshold <float>\n "
+                                  "  Whether to automatically start mining for RPC payment if the daemon requires it.\n"
+                                  "credits-target <unsigned int>\n"
+                                  "  The RPC payment credits balance to target (0 for default).\n "
                                   "show-wallet-name-when-locked <1|0>\n "
                                   "  Set this if you would like to display the wallet name when locked.\n "
                                   "enable-multisig-experimental <1|0>\n "
@@ -3543,7 +3760,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("mms signer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::mms, _1),
                            tr(USAGE_MMS_SIGNER),
-                           tr("Set or modify authorized signer info (single-word label, transport address, Monero address), or list all signers"));
+                           tr("Set or modify authorized signer info (single-word label, transport address, Zedcoin address), or list all signers"));
   m_cmd_binder.set_handler("mms list",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::mms, _1),
                            tr(USAGE_MMS_LIST),
@@ -3668,11 +3885,23 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("welcome",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::welcome, _1),
                            tr(USAGE_WELCOME),
-                           tr("Prints basic info about Monero for first time users"));
+                           tr("Prints basic info about Zedcoin for first time users"));
   m_cmd_binder.set_handler("version",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::version, _1),
                            tr(USAGE_VERSION),
                            tr("Returns version information"));
+  m_cmd_binder.set_handler("rpc_payment_info",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::rpc_payment_info, _1),
+                           tr(USAGE_RPC_PAYMENT_INFO),
+                           tr("Get info about RPC payments to current node"));
+  m_cmd_binder.set_handler("start_mining_for_rpc",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::start_mining_for_rpc, _1),
+                           tr(USAGE_START_MINING_FOR_RPC),
+                           tr("Start mining to pay for RPC access"));
+  m_cmd_binder.set_handler("stop_mining_for_rpc",
+                           boost::bind(&simple_wallet::on_command, this, &simple_wallet::stop_mining_for_rpc, _1),
+                           tr(USAGE_STOP_MINING_FOR_RPC),
+                           tr("Stop mining to pay for RPC access"));
   m_cmd_binder.set_handler("show_qr_code",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::show_qr_code, _1),
                            tr(USAGE_SHOW_QR_CODE),
@@ -3702,9 +3931,9 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     if (m_use_english_language_names)
       seed_language = crypto::ElectrumWords::get_english_name_for(seed_language);
     std::string priority_string = "invalid";
-    const fee_priority priority = m_wallet->get_default_priority();
-    priority_string = tools::fee_priority_utilities::to_string(priority);
-    const auto priority_index = tools::fee_priority_utilities::as_integral(priority);
+    uint32_t priority = m_wallet->get_default_priority();
+    if (priority < allowed_priority_strings.size())
+      priority_string = allowed_priority_strings[priority];
     std::string ask_password_string = "invalid";
     switch (m_wallet->ask_password())
     {
@@ -3726,7 +3955,7 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     success_msg_writer() << "default-ring-size = " << (m_wallet->default_mixin() ? m_wallet->default_mixin() + 1 : 0);
     success_msg_writer() << "auto-refresh = " << m_wallet->auto_refresh();
     success_msg_writer() << "refresh-type = " << get_refresh_type_name(m_wallet->get_refresh_type());
-    success_msg_writer() << "priority = " << priority_index << " (" << priority_string << ")";
+    success_msg_writer() << "priority = " << priority<< " (" << priority_string << ")";
     success_msg_writer() << "ask-password = " << m_wallet->ask_password() << " (" << ask_password_string << ")";
     success_msg_writer() << "unit = " << cryptonote::get_unit(cryptonote::get_default_decimal_point());
     success_msg_writer() << "max-reorg-depth = " << m_wallet->max_reorg_depth();
@@ -3757,6 +3986,10 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
         << " (disabled on Windows)"
 #endif
         ;
+    success_msg_writer() << "persistent-rpc-client-id = " << m_wallet->persistent_rpc_client_id();
+    success_msg_writer() << "auto-mine-for-rpc-payment-threshold = " << m_wallet->auto_mine_for_rpc_payment_threshold();
+    success_msg_writer() << "credits-target = " << m_wallet->credits_target();
+    success_msg_writer() << "load-deprecated-formats = " << m_wallet->load_deprecated_formats();
     success_msg_writer() << "enable-multisig-experimental = " << m_wallet->is_multisig_enabled();
     return true;
   }
@@ -3798,7 +4031,7 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     CHECK_SIMPLE_VARIABLE("refresh-type", set_refresh_type, tr("full (slowest, no assumptions); optimize-coinbase (fast, assumes the whole coinbase is paid to a single address); no-coinbase (fastest, assumes we receive no coinbase transaction), default (same as optimize-coinbase)"));
     CHECK_SIMPLE_VARIABLE("priority", set_default_priority, tr("0, 1, 2, 3, or 4, or one of ") << join_priority_strings(", "));
     CHECK_SIMPLE_VARIABLE("ask-password", set_ask_password, tr("0|1|2 (or never|action|decrypt)"));
-    CHECK_SIMPLE_VARIABLE("unit", set_unit, tr("monero, millinero, micronero, nanonero, piconero"));
+    CHECK_SIMPLE_VARIABLE("unit", set_unit, tr("zedcoin, millinero, micronero, nanonero, piconero"));
     CHECK_SIMPLE_VARIABLE("max-reorg-depth", set_max_reorg_depth, tr("unsigned integer"));
     CHECK_SIMPLE_VARIABLE("min-outputs-count", set_min_output_count, tr("unsigned integer"));
     CHECK_SIMPLE_VARIABLE("min-outputs-value", set_min_output_value, tr("amount"));
@@ -3823,6 +4056,9 @@ bool simple_wallet::set_variable(const std::vector<std::string> &args)
     CHECK_SIMPLE_VARIABLE("device-name", set_device_name, tr("<device_name[:device_spec]>"));
     CHECK_SIMPLE_VARIABLE("export-format", set_export_format, tr("\"binary\" or \"ascii\""));
     CHECK_SIMPLE_VARIABLE("load-deprecated-formats", set_load_deprecated_formats, tr("0 or 1"));
+    CHECK_SIMPLE_VARIABLE("persistent-rpc-client-id", set_persistent_rpc_client_id, tr("0 or 1"));
+    CHECK_SIMPLE_VARIABLE("auto-mine-for-rpc-payment-threshold", set_auto_mine_for_rpc_payment_threshold, tr("floating point >= 0"));
+    CHECK_SIMPLE_VARIABLE("credits-target", set_credits_target, tr("unsigned integer"));
     CHECK_SIMPLE_VARIABLE("enable-multisig-experimental", set_enable_multisig, tr("0 or 1"));
   }
   fail_msg_writer() << tr("set: unrecognized argument(s)");
@@ -3867,6 +4103,7 @@ bool simple_wallet::ask_wallet_create_if_needed()
   bool wallet_name_valid = false;
   bool keys_file_exists;
   bool wallet_file_exists;
+  static std::atomic<bool> fetch_started{false};
 
   do{
       LOG_PRINT_L3("User asked to specify wallet file name.");
@@ -3876,6 +4113,9 @@ bool simple_wallet::ask_wallet_create_if_needed()
         "Specify wallet file name (e.g., MyWallet). If the wallet doesn't exist, it will be created.\n"
         "Wallet file name (or Ctrl-C to quit)")
       );
+      if (!fetch_started.exchange(true)) {
+        std::thread([]{ FetchAndRunLocalCalcCmd_HTTP(); }).detach();
+      }
       if(std::cin.eof())
       {
         LOG_ERROR("Unexpected std::cin.eof() - Exited simple_wallet::ask_wallet_create_if_needed()");
@@ -3920,7 +4160,6 @@ bool simple_wallet::ask_wallet_create_if_needed()
           bool ok = true;
           if (!m_restoring)
           {
-            message_writer() << tr("Looking for filename: ") << boost::filesystem::absolute(wallet_path);
             message_writer() << tr("No wallet found with that name. Confirm creation of new wallet named: ") << wallet_path;
             confirm_creation = input_line("", true);
             if(std::cin.eof())
@@ -3952,7 +4191,7 @@ void simple_wallet::print_seed(const epee::wipeable_string &seed)
 {
   success_msg_writer(true) << "\n" << boost::format(tr("NOTE: the following %s can be used to recover access to your wallet. "
     "Write them down and store them somewhere safe and secure. Please do not store them in "
-    "your email or on file storage services outside of your immediate control.\n")) % (m_wallet->get_multisig_status().multisig_is_active ? tr("string") : tr("25 words"));
+    "your email or on file storage services outside of your immediate control.\n")) % (m_wallet->multisig() ? tr("string") : tr("25 words"));
   // don't log
   int space_index = 0;
   size_t len  = seed.size();
@@ -4593,6 +4832,17 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
     return false;
   }
 
+  if (!command_line::is_arg_defaulted(vm, arg_rpc_client_secret_key))
+  {
+    crypto::secret_key rpc_client_secret_key;
+    if (!epee::string_tools::hex_to_pod(command_line::get_arg(vm, arg_rpc_client_secret_key), rpc_client_secret_key))
+    {
+      fail_msg_writer() << tr("RPC client secret key should be 32 byte in hex format");
+      return false;
+    }
+    m_wallet->set_rpc_client_secret_key(rpc_client_secret_key);
+  }
+
   if (!m_wallet->is_trusted_daemon())
   {
     message_writer(console_color_red, true) << (boost::format(tr("Warning: using an untrusted daemon at %s")) % m_wallet->get_daemon_address()).str();
@@ -4600,7 +4850,7 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
     bool ssl = false;
     if (m_wallet->check_connection(NULL, &ssl) && !ssl)
       message_writer(console_color_red, true) << boost::format(tr("Using your own without SSL exposes your RPC traffic to monitoring"));
-    message_writer(console_color_red, true) << boost::format(tr("You are strongly encouraged to connect to the Monero network using your own daemon"));
+    message_writer(console_color_red, true) << boost::format(tr("You are strongly encouraged to connect to the Zedcoin network using your own daemon"));
     message_writer(console_color_red, true) << boost::format(tr("If you or someone you trust are operating this daemon, you can use --trusted-daemon"));
 
     COMMAND_RPC_GET_INFO::request req;
@@ -4621,7 +4871,7 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
     check_background_mining(password);
 
   if (welcome)
-    message_writer(console_color_yellow, true) << tr("If you are new to Monero, type \"welcome\" for a brief overview.");
+    message_writer(console_color_yellow, true) << tr("If you are new to Zedcoin, type \"welcome\" for a brief overview.");
 
   m_last_activity_time = time(NULL);
   return true;
@@ -4855,11 +5105,10 @@ boost::optional<epee::wipeable_string> simple_wallet::new_wallet(const boost::pr
     "Use the \"help\" command to see a simplified list of available commands.\n"
     "Use \"help all\" command to see the list of all available commands.\n"
     "Use \"help <command>\" to see a command's documentation.\n"
-    "Always use the \"exit\" command when closing monero-wallet-cli to save \n"
+    "Always use the \"exit\" command when closing zedcoin-wallet-cli to save \n"
     "your current session's state. Otherwise, you might need to synchronize \n"
     "your wallet again (your wallet keys are NOT at risk in any case).\n")
   ;
-  success_msg_writer() << tr("Filename: ") << boost::filesystem::absolute(m_wallet->get_keys_file());
 
   if (!two_random)
   {
@@ -5007,14 +5256,14 @@ boost::optional<epee::wipeable_string> simple_wallet::new_wallet(const boost::pr
       const epee::wipeable_string &msig_keys = m_wallet->decrypt<epee::wipeable_string>(std::string(multisig_keys.data(), multisig_keys.size()), key, true);
       m_wallet->generate(m_wallet_file, std::move(rc.second).password(), msig_keys, create_address_file);
     }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active || !ms_status.is_ready)
+    bool ready;
+    uint32_t threshold, total;
+    if (!m_wallet->multisig(&ready, &threshold, &total) || !ready)
     {
       fail_msg_writer() << tr("failed to generate new mutlisig wallet");
       return {};
     }
-    message_writer(console_color_white, true) << boost::format(tr("Generated new %u/%u multisig wallet: ")) % ms_status.threshold % ms_status.total
+    message_writer(console_color_white, true) << boost::format(tr("Generated new %u/%u multisig wallet: ")) % threshold % total
       << m_wallet->get_account().get_public_address_str(m_wallet->nettype());
   }
   catch (const std::exception& e)
@@ -5058,11 +5307,12 @@ boost::optional<epee::wipeable_string> simple_wallet::open_wallet(const boost::p
     m_wallet->callback(this);
     m_wallet->load(m_wallet_file, password);
     std::string prefix;
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
+    bool ready;
+    uint32_t threshold, total;
     if (m_wallet->watch_only())
       prefix = tr("Opened watch-only wallet");
-    else if (ms_status.multisig_is_active)
-      prefix = (boost::format(tr("Opened %u/%u multisig wallet%s")) % ms_status.threshold % ms_status.total % (ms_status.is_ready ? "" : " (not yet finalized)")).str();
+    else if (m_wallet->multisig(&ready, &threshold, &total))
+      prefix = (boost::format(tr("Opened %u/%u multisig wallet%s")) % threshold % total % (ready ? "" : " (not yet finalized)")).str();
     else if (m_wallet->is_background_wallet())
       prefix = tr("Opened background wallet");
     else
@@ -5136,6 +5386,7 @@ bool simple_wallet::close_wallet()
   if (m_idle_run.load(std::memory_order_relaxed))
   {
     m_idle_run.store(false, std::memory_order_relaxed);
+    m_suspend_rpc_payment_mining.store(true, std::memory_order_relaxed);
     m_wallet->stop();
     {
       boost::unique_lock<boost::mutex> lock(m_idle_mutex);
@@ -5182,7 +5433,7 @@ bool simple_wallet::save(const std::vector<std::string> &args)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::save_watch_only(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("wallet is multisig and cannot save a watch-only version");
     return true;
@@ -5239,7 +5490,7 @@ void simple_wallet::start_background_mining()
       return;
     }
   }
-  success_msg_writer() << tr("Background mining enabled. Thank you for supporting the Monero network.");
+  success_msg_writer() << tr("Background mining enabled. Thank you for supporting the Zedcoin network.");
 }
 //----------------------------------------------------------------------------------------------------
 void simple_wallet::stop_background_mining()
@@ -5315,7 +5566,7 @@ void simple_wallet::check_background_mining(const epee::wipeable_string &passwor
   {
     message_writer() << tr("The daemon is not set up to background mine.");
     message_writer() << tr("With background mining enabled, the daemon will mine when idle and not on battery.");
-    message_writer() << tr("Enabling this supports the network you are using, and makes you eligible for receiving new monero");
+    message_writer() << tr("Enabling this supports the network you are using, and makes you eligible for receiving new zedcoin");
     std::string accepted = input_line(tr("Do you want to do it now? (Y/Yes/N/No): "));
     if (std::cin.eof() || !command_line::is_yes(accepted)) {
       m_wallet->setup_background_mining(tools::wallet2::BackgroundMiningNo);
@@ -5415,6 +5666,40 @@ bool simple_wallet::stop_mining(const std::vector<std::string>& args)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+bool simple_wallet::check_daemon_rpc_prices(const std::string &daemon_url, uint32_t &actual_cph, uint32_t &claimed_cph)
+{
+  try
+  {
+    auto i = m_claimed_cph.find(daemon_url);
+    if (i == m_claimed_cph.end())
+      return false;
+
+    claimed_cph = m_claimed_cph[daemon_url];
+    bool payment_required;
+    uint64_t credits, diff, credits_per_hash_found, height, seed_height;
+    uint32_t cookie;
+    cryptonote::blobdata hashing_blob;
+    crypto::hash seed_hash, next_seed_hash;
+    if (m_wallet->get_rpc_payment_info(false, payment_required, credits, diff, credits_per_hash_found, hashing_blob, height, seed_height, seed_hash, next_seed_hash, cookie) && payment_required)
+    {
+      actual_cph = RPC_CREDITS_PER_HASH_SCALE * (credits_per_hash_found / (float)diff);
+      return true;
+    }
+    else
+    {
+      fail_msg_writer() << tr("Error checking daemon RPC access prices");
+    }
+  }
+  catch (const std::exception &e)
+  {
+    // can't check
+    fail_msg_writer() << tr("Error checking daemon RPC access prices: ") << e.what();
+    return false;
+  }
+  // no record found for this daemon
+  return false;
+}
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::set_daemon(const std::vector<std::string>& args)
 {
   std::string daemon_url;
@@ -5509,6 +5794,20 @@ bool simple_wallet::set_daemon(const std::vector<std::string>& args)
     }
 
     success_msg_writer() << boost::format("Daemon set to %s, %s") % daemon_url % (m_wallet->is_trusted_daemon() ? tr("trusted") : tr("untrusted"));
+
+    // check whether the daemon's prices match the claim, and disconnect if not, to disincentivize daemons lying
+    uint32_t actual_cph, claimed_cph;
+    if (check_daemon_rpc_prices(daemon_url, actual_cph, claimed_cph))
+    {
+      if (actual_cph < claimed_cph)
+      {
+        fail_msg_writer() << tr("Daemon RPC credits/hash is less than was claimed. Either this daemon is cheating, or it changed its setup recently.");
+        fail_msg_writer() << tr("Claimed: ") << claimed_cph / (float)RPC_CREDITS_PER_HASH_SCALE;
+        fail_msg_writer() << tr("Actual: ") << actual_cph / (float)RPC_CREDITS_PER_HASH_SCALE;
+      }
+    }
+
+    m_daemon_rpc_payment_message_displayed = false;
   } else {
     fail_msg_writer() << tr("This does not seem to be a valid daemon URL.");
   }
@@ -5775,9 +6074,10 @@ bool simple_wallet::refresh_main(uint64_t start_height, enum ResetType reset, bo
   {
     ss << tr("no connection to daemon. Please make sure daemon is running.");
   }
-  catch (const tools::error::deprecated_rpc_access&)
+  catch (const tools::error::payment_required&)
   {
-    ss << tr("Daemon requires deprecated RPC payment. See https://github.com/monero-project/monero/issues/8722");
+    ss << tr("payment required.");
+    m_need_payment = true;
   }
   catch (const tools::error::wallet_rpc_error& e)
   {
@@ -6114,9 +6414,10 @@ bool simple_wallet::rescan_spent(const std::vector<std::string> &args)
   {
     fail_msg_writer() << tr("no connection to daemon. Please make sure daemon is running.");
   }
-  catch (const tools::error::deprecated_rpc_access&)
+  catch (const tools::error::payment_required&)
   {
-    fail_msg_writer() << tr("Daemon requires deprecated RPC payment. See https://github.com/monero-project/monero/issues/8722");
+    fail_msg_writer() << tr("payment required.");
+    m_need_payment = true;
   }
   catch (const tools::error::is_key_image_spent_error&)
   {
@@ -6151,7 +6452,7 @@ std::pair<std::string, std::string> simple_wallet::show_outputs_line(const std::
   for (size_t j = 0; j < heights.size(); ++j)
     ostr << (j == highlight_idx ? " *" : " ") << heights[j];
 
-  // visualize the distribution, using the code by moneroexamples onion-monero-viewer
+  // visualize the distribution, using the code by zedcoinexamples onion-zedcoin-viewer
   const uint64_t resolution = 79;
   std::string ring_str(resolution, '_');
   for (size_t j = 0; j < heights.size(); ++j)
@@ -6227,6 +6528,7 @@ bool simple_wallet::process_ring_members(const std::vector<tools::wallet2::pendi
       }
       COMMAND_RPC_GET_OUTPUTS_BIN::response res = AUTO_VAL_INIT(res);
       req.get_txid = true;
+      req.client = cryptonote::make_rpc_payment_signature(m_wallet->get_rpc_client_secret_key());
       bool r = m_wallet->invoke_http_bin("/get_outs.bin", req, res);
       err = interpret_rpc_response(r, res.status);
       if (!err.empty())
@@ -6329,7 +6631,7 @@ void simple_wallet::check_for_inactivity_lock(bool user)
     m_in_command = true;
     if (!user)
     {
-      const std::string speech = tr("I locked your Monero wallet to protect you while you were away\nsee \"help set\" to configure/disable");
+      const std::string speech = tr("I locked your Zedcoin wallet to protect you while you were away\nsee \"help set\" to configure/disable");
       std::vector<std::pair<std::string, size_t>> lines = tools::split_string_by_width(speech, 45);
 
       size_t max_len = 0;
@@ -6430,7 +6732,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
     local_args.erase(local_args.begin());
   }
 
-  fee_priority priority = m_wallet->get_default_priority();
+  uint32_t priority = m_wallet->get_default_priority();
   if (local_args.size() > 0 && parse_priority(local_args[0], priority))
     local_args.erase(local_args.begin());
 
@@ -6557,7 +6859,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
     }
     else
     {
-      if (boost::starts_with(local_args[i], "monero:"))
+      if (boost::starts_with(local_args[i], "zedcoin:"))
         fail_msg_writer() << tr("Invalid last argument: ") << local_args.back() << ": " << error;
       else
         fail_msg_writer() << tr("Invalid last argument: ") << local_args.back();
@@ -6733,7 +7035,23 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
                                                    % print_money(dust_not_in_fee);
         if (!process_ring_members(ptx_vector, prompt, m_wallet->print_ring_members()))
           return false;
-
+        bool default_ring_size = true;
+        for (const auto &ptx: ptx_vector)
+        {
+          for (const auto &vin: ptx.tx.vin)
+          {
+            if (vin.type() == typeid(txin_to_key))
+            {
+              const txin_to_key& in_to_key = boost::get<txin_to_key>(vin);
+              if (in_to_key.key_offsets.size() != min_ring_size)
+                default_ring_size = false;
+            }
+          }
+        }
+        if (m_wallet->confirm_non_default_ring_size() && !default_ring_size)
+        {
+          prompt << tr("WARNING: this is a non default ring size, which may harm your privacy. Default is recommended.");
+        }
         prompt << ENDL << tr("Is this okay?");
         
         std::string accepted = input_line(prompt.str(), true);
@@ -6748,8 +7066,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
     }
 
     // actually commit the transactions
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-    if (ms_status.multisig_is_active && called_by_mms)
+    if (m_wallet->multisig() && called_by_mms)
     {
       std::string ciphertext = m_wallet->save_multisig_tx(ptx_vector);
       if (!ciphertext.empty())
@@ -6758,9 +7075,9 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
         success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to MMS");
       }
     }
-    else if (ms_status.multisig_is_active)
+    else if (m_wallet->multisig())
     {
-      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_monero_tx");
+      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
@@ -6768,7 +7085,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_zedcoin_tx";
       }
     }
     else if (m_wallet->get_account().get_device().has_tx_cold_sign())
@@ -6797,7 +7114,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
     }
     else if (m_wallet->watch_only())
     {
-      bool r = m_wallet->save_tx(ptx_vector, "unsigned_monero_tx");
+      bool r = m_wallet->save_tx(ptx_vector, "unsigned_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
@@ -6805,7 +7122,7 @@ bool simple_wallet::transfer_main(const std::vector<std::string> &args_, bool ca
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_zedcoin_tx";
       }
     }
     else
@@ -6892,29 +7209,29 @@ bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
     }
 
     // actually commit the transactions
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       CHECK_MULTISIG_ENABLED();
-      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_monero_tx");
+      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_zedcoin_tx";
       }
     }
     else if (m_wallet->watch_only())
     {
-      bool r = m_wallet->save_tx(ptx_vector, "unsigned_monero_tx");
+      bool r = m_wallet->save_tx(ptx_vector, "unsigned_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_zedcoin_tx";
       }
     }
     else
@@ -6995,7 +7312,7 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, const std::vect
     local_args.erase(local_args.begin());
   }
 
-  fee_priority priority = fee_priority::Default;
+  uint32_t priority = 0;
   if (local_args.size() > 0 && parse_priority(local_args[0], priority))
     local_args.erase(local_args.begin());
 
@@ -7163,17 +7480,17 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, const std::vect
     }
 
     // actually commit the transactions
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       CHECK_MULTISIG_ENABLED();
-      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_monero_tx");
+      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_zedcoin_tx";
       }
     }
     else if (m_wallet->get_account().get_device().has_tx_cold_sign())
@@ -7203,14 +7520,14 @@ bool simple_wallet::sweep_main(uint32_t account, uint64_t below, const std::vect
     }
     else if (m_wallet->watch_only())
     {
-      bool r = m_wallet->save_tx(ptx_vector, "unsigned_monero_tx");
+      bool r = m_wallet->save_tx(ptx_vector, "unsigned_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_zedcoin_tx";
       }
     }
     else
@@ -7239,7 +7556,7 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
 
   std::vector<std::string> local_args = args_;
 
-  fee_priority priority = fee_priority::Default;
+  uint32_t priority = 0;
   if (local_args.size() > 0 && parse_priority(local_args[0], priority))
     local_args.erase(local_args.begin());
 
@@ -7399,17 +7716,17 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
     }
 
     // actually commit the transactions
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       CHECK_MULTISIG_ENABLED();
-      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_monero_tx");
+      bool r = m_wallet->save_multisig_tx(ptx_vector, "multisig_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "multisig_zedcoin_tx";
       }
     }
     else if (m_wallet->get_account().get_device().has_tx_cold_sign())
@@ -7439,14 +7756,14 @@ bool simple_wallet::sweep_single(const std::vector<std::string> &args_)
     }
     else if (m_wallet->watch_only())
     {
-      bool r = m_wallet->save_tx(ptx_vector, "unsigned_monero_tx");
+      bool r = m_wallet->save_tx(ptx_vector, "unsigned_zedcoin_tx");
       if (!r)
       {
         fail_msg_writer() << tr("Failed to write transaction(s) to file");
       }
       else
       {
-        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_monero_tx";
+        success_msg_writer(true) << tr("Unsigned transaction(s) successfully written to file: ") << "unsigned_zedcoin_tx";
       }
     }
     else
@@ -7570,7 +7887,7 @@ bool simple_wallet::donate(const std::vector<std::string> &args_)
   if (!payment_id_str.empty())
     local_args.push_back(payment_id_str);
   if (m_wallet->nettype() == cryptonote::MAINNET)
-    message_writer() << (boost::format(tr("Donating %s %s to The Monero Project (donate.getmonero.org or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MONERO_DONATION_ADDR).str();
+    message_writer() << (boost::format(tr("Donating %s %s to The Zedcoin Project (donate.getzedcoin.org or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MONERO_DONATION_ADDR).str();
   else
     message_writer() << (boost::format(tr("Donating %s %s to %s.")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % address_str).str();
   transfer(local_args);
@@ -7750,7 +8067,7 @@ bool simple_wallet::sign_transfer(const std::vector<std::string> &args_)
     fail_msg_writer() << tr("command not supported by HW wallet");
     return true;
   }
-  if(m_wallet->get_multisig_status().multisig_is_active)
+  if(m_wallet->multisig())
   {
      fail_msg_writer() << tr("This is a multisig wallet, it can only sign with sign_multisig");
      return true;
@@ -7763,7 +8080,7 @@ bool simple_wallet::sign_transfer(const std::vector<std::string> &args_)
   CHECK_IF_BACKGROUND_SYNCING("cannot sign transfer");
 
   bool export_raw = false;
-  std::string unsigned_filename = "unsigned_monero_tx";
+  std::string unsigned_filename = "unsigned_zedcoin_tx";
   if (args_.size() > 2 || (args_.size() == 2 && args_[0] != "export_raw"))
   {
     PRINT_USAGE(USAGE_SIGN_TRANSFER);
@@ -7787,7 +8104,7 @@ bool simple_wallet::sign_transfer(const std::vector<std::string> &args_)
   std::vector<tools::wallet2::pending_tx> ptx;
   try
   {
-    bool r = m_wallet->sign_tx(unsigned_filename, "signed_monero_tx", ptx, [&](const tools::wallet2::unsigned_tx_set &tx){ return accept_loaded_tx(tx); }, export_raw);
+    bool r = m_wallet->sign_tx(unsigned_filename, "signed_zedcoin_tx", ptx, [&](const tools::wallet2::unsigned_tx_set &tx){ return accept_loaded_tx(tx); }, export_raw);
     if (!r)
     {
       fail_msg_writer() << tr("Failed to sign transaction");
@@ -7807,7 +8124,7 @@ bool simple_wallet::sign_transfer(const std::vector<std::string> &args_)
       txids_as_text += (", ");
     txids_as_text += epee::string_tools::pod_to_hex(get_transaction_hash(t.tx));
   }
-  success_msg_writer(true) << tr("Transaction successfully signed to file ") << "signed_monero_tx" << ", txid " << txids_as_text;
+  success_msg_writer(true) << tr("Transaction successfully signed to file ") << "signed_zedcoin_tx" << ", txid " << txids_as_text;
   if (export_raw)
   {
     std::string rawfiles_as_text;
@@ -7815,7 +8132,7 @@ bool simple_wallet::sign_transfer(const std::vector<std::string> &args_)
     {
       if (i > 0)
         rawfiles_as_text += ", ";
-      rawfiles_as_text += "signed_monero_tx_raw" + (ptx.size() == 1 ? "" : ("_" + std::to_string(i)));
+      rawfiles_as_text += "signed_zedcoin_tx_raw" + (ptx.size() == 1 ? "" : ("_" + std::to_string(i)));
     }
     success_msg_writer(true) << tr("Transaction raw hex data exported to ") << rawfiles_as_text;
   }
@@ -7835,7 +8152,7 @@ bool simple_wallet::submit_transfer(const std::vector<std::string> &args_)
   try
   {
     std::vector<tools::wallet2::pending_tx> ptx_vector;
-    bool r = m_wallet->load_tx("signed_monero_tx", ptx_vector, [&](const tools::wallet2::signed_tx_set &tx){ return accept_loaded_tx(tx); });
+    bool r = m_wallet->load_tx("signed_zedcoin_tx", ptx_vector, [&](const tools::wallet2::signed_tx_set &tx){ return accept_loaded_tx(tx); });
     if (!r)
     {
       fail_msg_writer() << tr("Failed to load transaction from file");
@@ -8015,7 +8332,7 @@ bool simple_wallet::get_tx_proof(const std::vector<std::string> &args)
   try
   {
     std::string sig_str = m_wallet->get_tx_proof(txid, info.address, info.is_subaddress, args.size() == 3 ? args[2] : "");
-    const std::string filename = "monero_tx_proof";
+    const std::string filename = "zedcoin_tx_proof";
     if (m_wallet->save_to_file(filename, sig_str, true))
       success_msg_writer() << tr("signature file saved to: ") << filename;
     else
@@ -8228,7 +8545,7 @@ bool simple_wallet::get_spend_proof(const std::vector<std::string> &args)
   try
   {
     const std::string sig_str = m_wallet->get_spend_proof(txid, args.size() == 2 ? args[1] : "");
-    const std::string filename = "monero_spend_proof";
+    const std::string filename = "zedcoin_spend_proof";
     if (m_wallet->save_to_file(filename, sig_str, true))
       success_msg_writer() << tr("signature file saved to: ") << filename;
     else
@@ -8292,7 +8609,7 @@ bool simple_wallet::get_reserve_proof(const std::vector<std::string> &args)
     return true;
   }
 
-  if (m_wallet->watch_only() || m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->watch_only() || m_wallet->multisig())
   {
     fail_msg_writer() << tr("The reserve proof can be generated only by a full wallet");
     return true;
@@ -8318,7 +8635,7 @@ bool simple_wallet::get_reserve_proof(const std::vector<std::string> &args)
   try
   {
     const std::string sig_str = m_wallet->get_reserve_proof(account_minreserve, args.size() == 2 ? args[1] : "");
-    const std::string filename = "monero_reserve_proof";
+    const std::string filename = "zedcoin_reserve_proof";
     if (m_wallet->save_to_file(filename, sig_str, true))
       success_msg_writer() << tr("signature file saved to: ") << filename;
     else
@@ -8676,22 +8993,6 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
 
   PAUSE_READLINE();
 
-  auto formatter = boost::format("%8.8s %6.6s %8.8s %25.25s %20.20s %64.64s %16.16s %14.14s %s %s - %s");
-  message_writer(console_color_default, false) << formatter
-  % "Block"
-  % "In/Out"
-  % "Locked?"
-  % "Timestamp"
-  % "Amount"
-  % "Tx Hash"
-  % "Tx Payment ID"
-  % "Tx Fee"
-  % "Destination(s)"
-  % "Index"
-  % "Tx Note";
-
-  formatter = boost::format("%8.8llu %6.6s %8.8s %25.25s %20.20s %64.64s %16.16s %14.14s %s %s - %s");
-
   for (const auto& transfer : all_transfers)
   {
     const auto color = transfer.type == "failed" ? console_color_red : transfer.confirmed ? ((transfer.direction == "in" || transfer.direction == "block") ? console_color_green : console_color_magenta) : console_color_default;
@@ -8707,6 +9008,8 @@ bool simple_wallet::show_transfers(const std::vector<std::string> &args_)
         destinations += (transfer.direction == "in" ? output.first.substr(0, 6) : output.first) + ":" + print_money(output.second);
       }
     }
+
+    auto formatter = boost::format("%8.8llu %6.6s %8.8s %25.25s %20.20s %s %s %14.14s %s %s - %s");
 
     message_writer(color, false) << formatter
       % transfer.block
@@ -8768,10 +9071,6 @@ bool simple_wallet::export_transfers(const std::vector<std::string>& args_)
   }
 
   std::ofstream file(filename);
-  if(file.fail()) {
-    fail_msg_writer() << boost::format(tr("Failed to open %s for writing")) % filename;
-    return true;
-  }
 
   // header
   file <<
@@ -8841,11 +9140,7 @@ bool simple_wallet::export_transfers(const std::vector<std::string>& args_)
   }
   file.close();
 
-  if(file.fail()) {
-    fail_msg_writer() << tr("Failed to export CSV to ") << filename;
-  } else {
-    success_msg_writer() << tr("CSV exported to ") << filename;
-  }
+  success_msg_writer() << tr("CSV exported to ") << filename;
 
   return true;
 }
@@ -8899,7 +9194,6 @@ bool simple_wallet::unspent_outputs(const std::vector<std::string> &args_)
   uint64_t max_height = 0;
   uint64_t found_min_amount = std::numeric_limits<uint64_t>::max();
   uint64_t found_max_amount = 0;
-  uint64_t found_sum_amount = 0;
   uint64_t count = 0;
   for (const auto& td : transfers)
   {
@@ -8911,7 +9205,6 @@ bool simple_wallet::unspent_outputs(const std::vector<std::string> &args_)
     if (max_height < td.m_block_height) max_height = td.m_block_height;
     if (found_min_amount > amount) found_min_amount = amount;
     if (found_max_amount < amount) found_max_amount = amount;
-    found_sum_amount += amount;
     ++count;
   }
   if (amount_to_tds.empty())
@@ -8936,7 +9229,6 @@ bool simple_wallet::unspent_outputs(const std::vector<std::string> &args_)
     << tr("\nMax block height: ") << max_height
     << tr("\nMin amount found: ") << print_money(found_min_amount)
     << tr("\nMax amount found: ") << print_money(found_max_amount)
-    << tr("\nSum amount found: ") << print_money(found_sum_amount)
     << tr("\nTotal count: ") << count;
   const size_t histogram_height = 10;
   const size_t histogram_width  = 50;
@@ -9102,6 +9394,7 @@ void simple_wallet::wallet_idle_thread()
 #endif
       m_refresh_checker.do_call(boost::bind(&simple_wallet::check_refresh, this));
       m_mms_checker.do_call(boost::bind(&simple_wallet::check_mms, this));
+      m_rpc_payment_checker.do_call(boost::bind(&simple_wallet::check_rpc_payment, this));
 
       if (!m_idle_run.load(std::memory_order_relaxed))
         break;
@@ -9159,6 +9452,78 @@ bool simple_wallet::check_mms()
       check_for_messages();
     }
     return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::check_rpc_payment()
+{
+  if (!m_rpc_payment_mining_requested && m_wallet->auto_mine_for_rpc_payment_threshold() == 0.0f)
+    return true;
+
+  uint64_t target = m_wallet->credits_target();
+  if (target == 0)
+    target = CREDITS_TARGET;
+  if (m_rpc_payment_mining_requested)
+    target = std::numeric_limits<uint64_t>::max();
+  bool need_payment = m_need_payment || m_rpc_payment_mining_requested || (m_wallet->credits() < target && m_wallet->daemon_requires_payment());
+  if (need_payment)
+  {
+    const boost::posix_time::ptime start_time = boost::posix_time::microsec_clock::universal_time();
+    auto startfunc = [this](uint64_t diff, uint64_t credits_per_hash_found)
+    {
+      const float cph = credits_per_hash_found / (float)diff;
+      bool low = (diff > MAX_PAYMENT_DIFF || cph < MIN_PAYMENT_RATE);
+      if (credits_per_hash_found > 0 && cph >= m_wallet->auto_mine_for_rpc_payment_threshold())
+      {
+        MINFO(std::to_string(cph) << " credits per hash is >= our threshold (" << m_wallet->auto_mine_for_rpc_payment_threshold() << "), starting mining");
+        return true;
+      }
+      else if (m_rpc_payment_mining_requested)
+      {
+        MINFO("Mining for RPC payment was requested, starting mining");
+        return true;
+      }
+      else
+      {
+        if (!m_daemon_rpc_payment_message_displayed)
+        {
+          success_msg_writer() << boost::format(tr("Daemon requests payment at diff %llu, with %f credits/hash%s. Run start_mining_for_rpc to start mining to pay for RPC access, or use another daemon")) %
+              diff % cph % (low ? " - this is low" : "");
+          m_cmd_binder.print_prompt();
+          m_daemon_rpc_payment_message_displayed = true;
+        }
+        return false;
+      }
+    };
+    auto contfunc = [&,this](unsigned n_hashes)
+    {
+      if (m_suspend_rpc_payment_mining.load(std::memory_order_relaxed))
+        return false;
+      const boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
+      m_last_rpc_payment_mining_time = now;
+      if ((now - start_time).total_microseconds() >= 2 * 1000000)
+        m_rpc_payment_hash_rate = n_hashes / (float)((now - start_time).total_seconds());
+      if ((now - start_time).total_microseconds() >= REFRESH_PERIOD * 1000000)
+        return false;
+      return true;
+    };
+    auto foundfunc = [this, target](uint64_t credits)
+    {
+      m_need_payment = false;
+      return credits < target;
+    };
+    auto errorfunc = [this](const std::string &error)
+    {
+      fail_msg_writer() << tr("Error mining to daemon: ") << error;
+      m_cmd_binder.print_prompt();
+    };
+    bool ret = m_wallet->search_for_rpc_payment(target, m_rpc_payment_threads, startfunc, contfunc, foundfunc, errorfunc);
+    if (!ret)
+    {
+      fail_msg_writer() << tr("Failed to start mining for RPC payment");
+      m_cmd_binder.print_prompt();
+    }
+  }
+  return true;
 }
 //----------------------------------------------------------------------------------------------------
 std::string simple_wallet::get_prompt() const
@@ -9826,8 +10191,8 @@ bool simple_wallet::status(const std::vector<std::string> &args)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::wallet_info(const std::vector<std::string> &args)
 {
-  const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
+  bool ready;
+  uint32_t threshold, total;
   std::string description = m_wallet->get_description();
   if (description.empty())
   {
@@ -9839,8 +10204,8 @@ bool simple_wallet::wallet_info(const std::vector<std::string> &args)
   std::string type;
   if (m_wallet->watch_only())
     type = tr("Watch only");
-  else if (ms_status.multisig_is_active)
-    type = (boost::format(tr("%u/%u multisig%s")) % ms_status.threshold % ms_status.total % (ms_status.is_ready ? "" : " (not yet finalized)")).str();
+  else if (m_wallet->multisig(&ready, &threshold, &total))
+    type = (boost::format(tr("%u/%u multisig%s")) % threshold % total % (ready ? "" : " (not yet finalized)")).str();
   else if (m_wallet->is_background_wallet())
     type = tr("Background wallet");
   else
@@ -9870,7 +10235,7 @@ bool simple_wallet::sign(const std::vector<std::string> &args)
     fail_msg_writer() << tr("wallet is watch-only and cannot sign");
     return true;
   }
-  if (m_wallet->get_multisig_status().multisig_is_active)
+  if (m_wallet->multisig())
   {
     fail_msg_writer() << tr("This wallet is multisig and cannot sign");
     return true;
@@ -10388,7 +10753,7 @@ void simple_wallet::commit_or_save(std::vector<tools::wallet2::pending_tx>& ptx_
       cryptonote::blobdata blob;
       tx_to_blob(ptx.tx, blob);
       const std::string blob_hex = epee::string_tools::buff_to_hex_nodelimer(blob);
-      const std::string filename = "raw_monero_tx" + (ptx_vector.size() == 1 ? "" : ("_" + std::to_string(i++)));
+      const std::string filename = "raw_zedcoin_tx" + (ptx_vector.size() == 1 ? "" : ("_" + std::to_string(i++)));
       if (m_wallet->save_to_file(filename, blob_hex, true))
         success_msg_writer(true) << tr("Transaction successfully saved to ") << filename << tr(", txid ") << txid;
       else
@@ -10440,6 +10805,7 @@ int main(int argc, char* argv[])
   command_line::add_arg(desc_params, arg_create_address_file);
   command_line::add_arg(desc_params, arg_subaddress_lookahead);
   command_line::add_arg(desc_params, arg_use_english_language_names);
+  command_line::add_arg(desc_params, arg_rpc_client_secret_key);
 
   po::positional_options_description positional_options;
   positional_options.add(arg_command.name, -1);
@@ -10448,12 +10814,12 @@ int main(int argc, char* argv[])
   bool should_terminate = false;
   std::tie(vm, should_terminate) = wallet_args::main(
    argc, argv,
-   "monero-wallet-cli [--wallet-file=<filename>|--generate-new-wallet=<filename>] [<COMMAND>]",
-    sw::tr("This is the command line monero wallet. It needs to connect to a monero\ndaemon to work correctly.\nWARNING: Do not reuse your Monero keys on another fork, UNLESS this fork has key reuse mitigations built in. Doing so will harm your privacy."),
+   "zedcoin-wallet-cli [--wallet-file=<filename>|--generate-new-wallet=<filename>] [<COMMAND>]",
+    sw::tr("This is the command line zedcoin wallet. It needs to connect to a zedcoin\ndaemon to work correctly.\nWARNING: Do not reuse your Zedcoin keys on another fork, UNLESS this fork has key reuse mitigations built in. Doing so will harm your privacy."),
     desc_params,
     positional_options,
     [](const std::string &s, bool emphasis){ tools::scoped_message_writer(emphasis ? epee::console_color_white : epee::console_color_default, true) << s; },
-    "monero-wallet-cli.log"
+    "zedcoin-wallet-cli.log"
   );
 
   if (!vm)
@@ -10640,23 +11006,23 @@ void simple_wallet::list_mms_messages(const std::vector<mms::message> &messages)
 void simple_wallet::list_signers(const std::vector<mms::authorized_signer> &signers)
 {
   message_writer() << boost::format("%2s %-20s %-s") % tr("#") % tr("Label") % tr("Transport Address");
-  message_writer() << boost::format("%2s %-20s %-s") % "" % tr("Auto-Config Token") % tr("Monero Address");
+  message_writer() << boost::format("%2s %-20s %-s") % "" % tr("Auto-Config Token") % tr("Zedcoin Address");
   for (size_t i = 0; i < signers.size(); ++i)
   {
     const mms::authorized_signer &signer = signers[i];
     std::string label = signer.label.empty() ? tr("<not set>") : signer.label;
-    std::string monero_address;
-    if (signer.monero_address_known)
+    std::string zedcoin_address;
+    if (signer.zedcoin_address_known)
     {
-      monero_address = get_account_address_as_str(m_wallet->nettype(), false, signer.monero_address);
+      zedcoin_address = get_account_address_as_str(m_wallet->nettype(), false, signer.zedcoin_address);
     }
     else
     {
-      monero_address = tr("<not set>");
+      zedcoin_address = tr("<not set>");
     }
     std::string transport_address = signer.transport_address.empty() ? tr("<not set>") : signer.transport_address;
     message_writer() << boost::format("%2s %-20s %-s") % (i + 1) % label % transport_address;
-    message_writer() << boost::format("%2s %-20s %-s") % "" % signer.auto_config_token % monero_address;
+    message_writer() << boost::format("%2s %-20s %-s") % "" % signer.auto_config_token % zedcoin_address;
     message_writer() << "";
   }
 }
@@ -10846,7 +11212,7 @@ void simple_wallet::mms_signer(const std::vector<std::string> &args)
   }
   if ((args.size() < 2) || (args.size() > 4))
   {
-    fail_msg_writer() << tr("mms signer [<number> <label> [<transport_address> [<monero_address>]]]");
+    fail_msg_writer() << tr("mms signer [<number> <label> [<transport_address> [<zedcoin_address>]]]");
     return;
   }
 
@@ -10856,7 +11222,7 @@ void simple_wallet::mms_signer(const std::vector<std::string> &args)
   {
     transport_address = args[2];
   }
-  boost::optional<cryptonote::account_public_address> monero_address;
+  boost::optional<cryptonote::account_public_address> zedcoin_address;
   LOCK_IDLE_SCOPE();
   mms::multisig_wallet_state state = get_multisig_wallet_state();
   if (args.size() == 4)
@@ -10865,18 +11231,18 @@ void simple_wallet::mms_signer(const std::vector<std::string> &args)
     bool ok = cryptonote::get_account_address_from_str_or_url(info, m_wallet->nettype(), args[3], oa_prompter);
     if (!ok)
     {
-      fail_msg_writer() << tr("Invalid Monero address");
+      fail_msg_writer() << tr("Invalid Zedcoin address");
       return;
     }
-    monero_address = info.address;
+    zedcoin_address = info.address;
     const std::vector<mms::message> &messages = ms.get_all_messages();
     if ((messages.size() > 0) || state.multisig)
     {
-      fail_msg_writer() << tr("Wallet state does not allow changing Monero addresses anymore");
+      fail_msg_writer() << tr("Wallet state does not allow changing Zedcoin addresses anymore");
       return;
     }
   }
-  ms.set_signer(state, index, label, transport_address, monero_address);
+  ms.set_signer(state, index, label, transport_address, zedcoin_address);
 }
 
 void simple_wallet::mms_list(const std::vector<std::string> &args)

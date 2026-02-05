@@ -142,6 +142,10 @@ function getApproximateBlockchainHeight(_date, _nettype){
     var forkBlock = _nettype == "Mainnet" ? 0 : _nettype == "Testnet" ? 0 : 0;
     // avg seconds per block in V2
     var secondsPerBlockV2 = 120;
+    // v3 fork block (90s target)
+    var forkBlockV3 = _nettype == "Mainnet" ? 5500 : _nettype == "Testnet" ? 205 : 0;
+    var secondsPerBlockV3 = 90;
+    var forkTimeV3 = forkTime + (forkBlockV3 * secondsPerBlockV2);
     // time in UTC
     var requestedTime = Math.floor(new Date(_date) / 1000);
     var approxBlockchainHeight;
@@ -156,6 +160,12 @@ function getApproximateBlockchainHeight(_date, _nettype){
         approxBlockchainHeight = Math.floor((requestedTime - zedcoinBirthTime)/secondsPerBlockV1);
         console.log("Calculated blockchain height: " + approxBlockchainHeight );
         secondsPerBlock = secondsPerBlockV1;
+    }
+    // time is during V3 (90s target)
+    else if (forkBlockV3 > 0 && requestedTime >= forkTimeV3){
+        approxBlockchainHeight =  Math.floor(forkBlockV3 + (requestedTime - forkTimeV3)/secondsPerBlockV3);
+        console.log("Calculated blockchain height: " + approxBlockchainHeight );
+        secondsPerBlock = secondsPerBlockV3;
     }
     // time is during V2
     else{

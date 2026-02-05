@@ -1569,12 +1569,15 @@ Rectangle {
             var timestamp = new Date(date + " " + time).getTime() / 1000;
             var dateHuman = Utils.ago(timestamp);
 
+            var displayAmount = _model.data(idx, TransactionHistoryModel.TransactionDisplayAmountRole);
             if (amount === 0) {
                 // transactions to the same account have amount === 0, while the 'destinations string'
                 // has the correct amount, so we try to fetch it from that instead.
-                amount = Number(TxUtils.destinationsToAmount(destinations));
+                var destinationAmount = TxUtils.destinationsToAmount(destinations);
+                amount = Number(destinationAmount);
+                displayAmount = destinationAmount;
             }
-            var displayAmount = Utils.removeTrailingZeros(amount.toFixed(12)) + " ZED";
+            displayAmount = Utils.removeTrailingZeros(displayAmount) + " ZED";
 
             var tx_note = currentWallet.getUserNote(hash);
             var address = "";

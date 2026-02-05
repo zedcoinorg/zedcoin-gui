@@ -367,7 +367,7 @@ Rectangle {
                 }
 
                 ZedcoinComponents.InlineButton {
-                    buttonColor: ZedcoinComponents.Style.orange
+                    buttonColor: ZedcoinComponents.Style.buttonBackgroundColor
                     fontFamily: FontAwesome.fontFamily
                     text: FontAwesome.qrcode
                     visible : appWindow.qrScannerEnabled && !addressLine.text

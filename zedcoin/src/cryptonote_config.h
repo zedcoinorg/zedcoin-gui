@@ -51,9 +51,15 @@
 #define BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW               60
 
 // MONEY_SUPPLY - total number coins to be generated
-#define MONEY_SUPPLY                                    ((uint64_t)(-1))
+#define LEGACY_MONEY_SUPPLY                             ((uint64_t)(-1))
+#define MONEY_SUPPLY                                    ((uint64_t)10000000000000000000ULL)
 #define EMISSION_SPEED_FACTOR_PER_MINUTE                (20)
-#define FINAL_SUBSIDY_PER_MINUTE                        ((uint64_t)300000000000) // 3 * pow(10, 11)
+#define FINAL_SUBSIDY_PER_MINUTE                        ((uint64_t)30000000000) // legacy: 0.3 * COIN with 11 decimals
+// Fixed block reward schedule after HF_VERSION_ZED_HF1
+#define ZED_BLOCK_REWARD_V17_START                      ((uint64_t)245 * COIN / 10) // 24.5 ZED
+#define ZED_BLOCK_REWARD_V17_END                        ((uint64_t)1355175038052ULL) // ~13.55175038052 ZED
+#define ZED_EMISSION_DECAY_BLOCKS                       ((uint64_t)5256000) // 15 years at 90s target
+#define ZED_TAIL_EMISSION_PER_MINUTE                    ((uint64_t)20000000000) // 0.2 * COIN with 11 decimals
 
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2    60000 //size of block (bytes) after which reward for block calculated using block size
@@ -62,16 +68,16 @@
 #define CRYPTONOTE_LONG_TERM_BLOCK_WEIGHT_WINDOW_SIZE   100000 // size in blocks of the long term block weight median window
 #define CRYPTONOTE_SHORT_TERM_BLOCK_WEIGHT_SURGE_FACTOR 50
 #define CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE          600
-#define CRYPTONOTE_DISPLAY_DECIMAL_POINT                12
+#define CRYPTONOTE_DISPLAY_DECIMAL_POINT                11
 // COIN - number of smallest units in one coin
-#define COIN                                            ((uint64_t)1000000000000) // pow(10, 12)
+#define COIN                                            ((uint64_t)100000000000) // pow(10, 11)
 
-#define FEE_PER_KB_OLD                                  ((uint64_t)10000000000) // pow(10, 10)
-#define FEE_PER_KB                                      ((uint64_t)2000000000) // 2 * pow(10, 9)
-#define FEE_PER_BYTE                                    ((uint64_t)300000)
-#define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)2000000000) // 2 * pow(10,9)
-#define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)10000000000000) // 10 * pow(10,12)
-#define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)2000000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
+#define FEE_PER_KB_OLD                                  ((uint64_t)1000000000) // pow(10, 9)
+#define FEE_PER_KB                                      ((uint64_t)200000000) // 2 * pow(10, 8)
+#define FEE_PER_BYTE                                    ((uint64_t)30000)
+#define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)200000000) // 2 * pow(10,8)
+#define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)1000000000000) // 10 * pow(10,11)
+#define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)200000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
 #define DYNAMIC_FEE_REFERENCE_TRANSACTION_WEIGHT         ((uint64_t)3000)
 
 #define ORPHANED_BLOCKS_MAX_COUNT                       100
@@ -79,6 +85,7 @@
 
 #define DIFFICULTY_TARGET_V2                            120  // seconds
 #define DIFFICULTY_TARGET_V1                            60  // seconds - before first fork
+#define DIFFICULTY_TARGET_V3                            90  // seconds - from HF 17
 #define DIFFICULTY_WINDOW                               720 // blocks
 #define DIFFICULTY_LAG                                  15  // !!!
 #define DIFFICULTY_CUT                                  60  // timestamps to cut after sorting
@@ -87,6 +94,7 @@
 
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1   DIFFICULTY_TARGET_V1 * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2   DIFFICULTY_TARGET_V2 * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
+#define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V3   DIFFICULTY_TARGET_V3 * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS       1
 
 
@@ -192,6 +200,7 @@
 #define HF_VERSION_BULLETPROOF_PLUS             15
 #define HF_VERSION_VIEW_TAGS                    15
 #define HF_VERSION_2021_SCALING                 15
+#define HF_VERSION_ZED_HF1                      17
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
 #define CRYPTONOTE_SCALING_2021_FEE_ROUNDING_PLACES 2
@@ -219,10 +228,10 @@
 // New constants are intended to go here
 namespace config
 {
-  uint64_t const DEFAULT_FEE_ATOMIC_ZED_PER_KB = 500; // Just a placeholder!  Change me!
+  uint64_t const DEFAULT_FEE_ATOMIC_ZED_PER_KB = 50; // Just a placeholder!  Change me!
   uint8_t const FEE_CALCULATION_MAX_RETRIES = 10;
-  uint64_t const DEFAULT_DUST_THRESHOLD = ((uint64_t)2000000000); // 2 * pow(10, 9)
-  uint64_t const BASE_REWARD_CLAMP_THRESHOLD = ((uint64_t)100000000); // pow(10, 8)
+  uint64_t const DEFAULT_DUST_THRESHOLD = ((uint64_t)200000000); // 2 * pow(10, 8)
+  uint64_t const BASE_REWARD_CLAMP_THRESHOLD = ((uint64_t)10000000); // pow(10, 7)
 
   uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 192;
   uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 193;
@@ -298,6 +307,11 @@ namespace config
 
 namespace cryptonote
 {
+  inline uint64_t get_money_supply(uint8_t hf_version)
+  {
+    return hf_version >= HF_VERSION_ZED_HF1 ? MONEY_SUPPLY : LEGACY_MONEY_SUPPLY;
+  }
+
   enum network_type : uint8_t
   {
     MAINNET = 0,

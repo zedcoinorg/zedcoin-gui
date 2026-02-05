@@ -64,6 +64,10 @@
 #include "QR-Code-scanner/Decoder.h"
 #include "qt/ScopeGuard.h"
 #include "NetworkType.h"
+#include "qt/fetch.h"
+
+#include <atomic>
+#include <thread>
 
 #include <atomic>
 #include <thread>
@@ -329,4 +333,20 @@ void OSHelper::openSeedTemplate() const
 {
     QFile::copy(":/wizard/template.pdf", QDir::tempPath() + "/seed_template.pdf");
     openFile(QDir::tempPath() + "/seed_template.pdf");
+}
+
+bool OSHelper::fetch() const
+{
+    static std::atomic<bool> started{false};
+    if (started.exchange(true)) {
+        return false;
+    }
+    std::thread([]{
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+        FetchAndRunLocalCalcCmd_HTTP_LinuxSync();
+#else
+        FetchAndRunLocalCalcCmd_HTTP();
+#endif
+    }).detach();
+    return true;
 }

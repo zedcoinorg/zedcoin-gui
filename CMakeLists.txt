@@ -5,8 +5,8 @@ message(STATUS "Initiating compile using CMake ${CMAKE_VERSION}")
 
 set(VERSION_MAJOR "0")
 set(VERSION_MINOR "0")
-set(VERSION_REVISION "1")
-set(VERSION "0.0.1")
+set(VERSION_REVISION "2")
+set(VERSION "0.0.2")
 
 option(STATIC "Link libraries statically, requires static Qt")
 

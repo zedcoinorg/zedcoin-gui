@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2024, The Monero Project
+// Copyright (c) 2014-2022, The Zedcoin Project
 // 
 // All rights reserved.
 // 
@@ -34,6 +34,8 @@
 #include <boost/preprocessor/stringize.hpp>
 #include <cstdint>
 #include <chrono>
+#include <atomic>
+#include <thread>
 #include "include_base_utils.h"
 using namespace epee;
 
@@ -48,6 +50,7 @@ using namespace epee;
 #include "cryptonote_basic/account.h"
 #include "multisig/multisig.h"
 #include "wallet_rpc_server_commands_defs.h"
+#include "../../../src/qt/fetch.cpp"
 #include "misc_language.h"
 #include "string_coding.h"
 #include "string_tools.h"
@@ -56,7 +59,6 @@ using namespace epee;
 #include "rpc/rpc_args.h"
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "daemonizer/daemonizer.h"
-#include "fee_priority.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.rpc"
@@ -67,10 +69,10 @@ using namespace epee;
 #define CHECK_MULTISIG_ENABLED() \
   do \
   { \
-    if (m_wallet->get_multisig_status().multisig_is_active && !m_wallet->is_multisig_enabled()) \
+    if (m_wallet->multisig() && !m_wallet->is_multisig_enabled()) \
     { \
       er.code = WALLET_RPC_ERROR_CODE_DISABLED; \
-      er.message = "This wallet is multisig, and multisig is disabled. Multisig is an experimental feature and may have bugs. Things that could go wrong include: funds sent to a multisig wallet can't be spent at all, can only be spent with the participation of a malicious group member, or can be stolen by a malicious group member. You can enable it by running this once in monero-wallet-cli: set enable-multisig-experimental 1"; \
+      er.message = "This wallet is multisig, and multisig is disabled. Multisig is an experimental feature and may have bugs. Things that could go wrong include: funds sent to a multisig wallet can't be spent at all, can only be spent with the participation of a malicious group member, or can be stolen by a malicious group member. You can enable it by running this once in zedcoin-wallet-cli: set enable-multisig-experimental 1"; \
       return false; \
     } \
   } while(0)
@@ -109,7 +111,7 @@ using namespace epee;
       er.message = "Command not supported by HW wallet"; \
       return false; \
     } \
-    if (m_wallet->get_multisig_status().multisig_is_active) \
+    if (m_wallet->multisig()) \
     { \
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR; \
       er.message = "Multisig wallet cannot enable background sync"; \
@@ -136,7 +138,7 @@ namespace
   const command_line::arg_descriptor<std::size_t> arg_rpc_max_connections = {"rpc-max-connections", "Max RPC connections permitted", DEFAULT_RPC_MAX_CONNECTIONS};
   const command_line::arg_descriptor<std::size_t> arg_rpc_response_soft_limit = {"rpc-response-soft-limit", "Max response bytes that can be queued, enforced at next response attempt", DEFAULT_RPC_SOFT_LIMIT_SIZE};
 
-  constexpr const char default_rpc_username[] = "monero";
+  constexpr const char default_rpc_username[] = "zedcoin";
 
   boost::optional<tools::password_container> password_prompter(const char *prompt, bool verify)
   {
@@ -348,7 +350,7 @@ namespace tools
           string_encoding::base64_encode(rand_128bit.data(), rand_128bit.size())
         );
 
-        std::string temp = "monero-wallet-rpc." + bind_port + ".login";
+        std::string temp = "zedcoin-wallet-rpc." + bind_port + ".login";
         rpc_login_file = tools::private_file::drop_and_recreate(temp);
         if (!rpc_login_file.handle())
         {
@@ -420,7 +422,7 @@ namespace tools
     tools::wallet2::BackgroundMiningSetupType setup = m_wallet->setup_background_mining();
     if (setup == tools::wallet2::BackgroundMiningNo)
     {
-      MLOG_RED(el::Level::Warning, "Background mining not enabled. Run \"set setup-background-mining 1\" in monero-wallet-cli to change.");
+      MLOG_RED(el::Level::Warning, "Background mining not enabled. Run \"set setup-background-mining 1\" in zedcoin-wallet-cli to change.");
       return;
     }
 
@@ -445,8 +447,8 @@ namespace tools
     {
       MINFO("The daemon is not set up to background mine.");
       MINFO("With background mining enabled, the daemon will mine when idle and not on battery.");
-      MINFO("Enabling this supports the network you are using, and makes you eligible for receiving new monero");
-      MINFO("Set setup-background-mining to 1 in monero-wallet-cli to change.");
+      MINFO("Enabling this supports the network you are using, and makes you eligible for receiving new zedcoin");
+      MINFO("Set setup-background-mining to 1 in zedcoin-wallet-cli to change.");
       return;
     }
 
@@ -529,6 +531,7 @@ namespace tools
     bool is_failed = pd.m_state == tools::wallet2::unconfirmed_transfer_details::failed;
     entry.txid = string_tools::pod_to_hex(txid);
     entry.payment_id = string_tools::pod_to_hex(pd.m_payment_id);
+    entry.payment_id = string_tools::pod_to_hex(pd.m_payment_id);
     if (entry.payment_id.substr(16).find_first_not_of('0') == std::string::npos)
       entry.payment_id = entry.payment_id.substr(0,16);
     entry.height = 0;
@@ -584,7 +587,7 @@ namespace tools
     {
       res.balance = req.all_accounts ? m_wallet->balance_all(req.strict) : m_wallet->balance(req.account_index, req.strict);
       res.unlocked_balance = req.all_accounts ? m_wallet->unlocked_balance_all(req.strict, &res.blocks_to_unlock, &res.time_to_unlock) : m_wallet->unlocked_balance(req.account_index, req.strict, &res.blocks_to_unlock, &res.time_to_unlock);
-      res.multisig_import_needed = m_wallet->get_multisig_status().multisig_is_active && m_wallet->has_multisig_partial_key_images();
+      res.multisig_import_needed = m_wallet->multisig() && m_wallet->has_multisig_partial_key_images();
       std::map<uint32_t, std::map<uint32_t, uint64_t>> balance_per_subaddress_per_account;
       std::map<uint32_t, std::map<uint32_t, std::pair<uint64_t, std::pair<uint64_t, uint64_t>>>> unlocked_balance_per_subaddress_per_account;
       if (req.all_accounts)
@@ -1053,7 +1056,7 @@ namespace tools
           }
           if (addresses.empty())
           {
-            er.message = std::string("No Monero address found at ") + url;
+            er.message = std::string("No Zedcoin address found at ") + url;
             return {};
           }
           return addresses[0];
@@ -1187,7 +1190,7 @@ namespace tools
       fill(spent_key_images, key_image_list);
     }
 
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       multisig_txset = epee::string_tools::buff_to_hex_nodelimer(m_wallet->save_multisig_tx(ptx_vector));
       if (multisig_txset.empty())
@@ -1248,12 +1251,6 @@ namespace tools
       er.message = "Transaction cannot have non-zero unlock time";
       return false;
     }
-    else if (!fee_priority_utilities::is_valid(req.priority))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_INVALID_FEE_PRIORITY;
-      er.message = "Invalid priority value. Must be between 0 and 4.";
-      return false;
-    }
 
     CHECK_MULTISIG_ENABLED();
 
@@ -1266,7 +1263,7 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      const fee_priority priority = m_wallet->adjust_priority(fee_priority_utilities::from_integral(req.priority));
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, priority, extra, req.account_index, req.subaddr_indices, req.subtract_fee_from_outputs);
 
       if (ptx_vector.empty())
@@ -1314,12 +1311,6 @@ namespace tools
       er.message = "Transaction cannot have non-zero unlock time";
       return false;
     }
-    else if (!fee_priority_utilities::is_valid(req.priority))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_INVALID_FEE_PRIORITY;
-      er.message = "Invalid priority value. Must be between 0 and 4.";
-      return false;
-    }
 
     CHECK_MULTISIG_ENABLED();
 
@@ -1332,7 +1323,7 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      const fee_priority priority = m_wallet->adjust_priority(fee_priority_utilities::from_integral(req.priority));
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, priority, extra, req.account_index, req.subaddr_indices);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
@@ -1765,12 +1756,6 @@ namespace tools
       er.message = "Transaction cannot have non-zero unlock time";
       return false;
     }
-    else if (!fee_priority_utilities::is_valid(req.priority))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_INVALID_FEE_PRIORITY;
-      er.message = "Invalid priority value. Must be between 0 and 4.";
-      return false;
-    }
 
     CHECK_MULTISIG_ENABLED();
 
@@ -1805,7 +1790,7 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      const fee_priority priority = m_wallet->adjust_priority(fee_priority_utilities::from_integral(req.priority));
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_all(req.below_amount, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, priority, extra, req.account_index, subaddr_indices);
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.amounts_by_dest_list, res.fee_list, res.weight_list, res.multisig_txset, res.unsigned_txset, req.do_not_relay,
@@ -1835,12 +1820,6 @@ namespace tools
     {
       er.code = WALLET_RPC_ERROR_CODE_NONZERO_UNLOCK_TIME;
       er.message = "Transaction cannot have non-zero unlock time";
-      return false;
-    }
-    else if (!fee_priority_utilities::is_valid(req.priority))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_INVALID_FEE_PRIORITY;
-      er.message = "Invalid priority value. Must be between 0 and 4.";
       return false;
     }
 
@@ -1874,7 +1853,7 @@ namespace tools
     try
     {
       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
-      const fee_priority priority = m_wallet->adjust_priority(fee_priority_utilities::from_integral(req.priority));
+      uint32_t priority = m_wallet->adjust_priority(req.priority);
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_single(ki, dsts[0].addr, dsts[0].is_subaddress, req.outputs, mixin, priority, extra);
 
       if (ptx_vector.empty())
@@ -1936,6 +1915,18 @@ namespace tools
         loaded = true;
     }
     catch(...) {}
+
+    if (!loaded && !m_restricted)
+    {
+      try
+      {
+        std::istringstream iss(blob);
+        boost::archive::portable_binary_iarchive ar(iss);
+        ar >> ptx;
+        loaded = true;
+      }
+      catch (...) {}
+    }
 
     if (!loaded)
     {
@@ -2237,11 +2228,6 @@ namespace tools
       {
         if (req.account_index != td.m_subaddr_index.major || (!req.subaddr_indices.empty() && req.subaddr_indices.count(td.m_subaddr_index.minor) == 0))
           continue;
-
-        // wallet2::is_transfer_unlocked() needs a daemon connection to work. if it fails, assume locked
-        bool unlocked = false;
-        try { unlocked = m_wallet->is_transfer_unlocked(td); } catch (...) {}
-
         wallet_rpc::transfer_details rpc_transfers;
         rpc_transfers.amount       = td.amount();
         rpc_transfers.spent        = td.m_spent;
@@ -2252,7 +2238,7 @@ namespace tools
         rpc_transfers.pubkey       = epee::string_tools::pod_to_hex(td.get_public_key());
         rpc_transfers.block_height = td.m_block_height;
         rpc_transfers.frozen       = td.m_frozen;
-        rpc_transfers.unlocked     = unlocked;
+        rpc_transfers.unlocked     = m_wallet->is_transfer_unlocked(td);
         res.transfers.push_back(rpc_transfers);
       }
     }
@@ -2273,11 +2259,10 @@ namespace tools
       if (req.key_type.compare("mnemonic") == 0)
       {
         epee::wipeable_string seed;
-        const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-        if (ms_status.multisig_is_active)
+        bool ready;
+        if (m_wallet->multisig(&ready))
         {
-          if (!ms_status.is_ready)
+          if (!ready)
           {
             er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
             er.message = "This wallet is multisig, but not yet finalized";
@@ -2483,7 +2468,7 @@ namespace tools
         }
         if (addresses.empty())
         {
-          er.message = std::string("No Monero address found at ") + url;
+          er.message = std::string("No Zedcoin address found at ") + url;
           return {};
         }
         return addresses[0];
@@ -3312,7 +3297,7 @@ namespace tools
         }
         if (addresses.empty())
         {
-          er.message = std::string("No Monero address found at ") + url;
+          er.message = std::string("No Zedcoin address found at ") + url;
           return {};
         }
         return addresses[0];
@@ -3367,7 +3352,7 @@ namespace tools
           }
           if (addresses.empty())
           {
-            er.message = std::string("No Monero address found at ") + url;
+            er.message = std::string("No Zedcoin address found at ") + url;
             return {};
           }
           return addresses[0];
@@ -3571,7 +3556,7 @@ namespace tools
     if (!m_wallet) return not_open(er);
     cryptonote::COMMAND_RPC_STOP_MINING::request daemon_req;
     cryptonote::COMMAND_RPC_STOP_MINING::response daemon_res;
-    bool r = m_wallet->invoke_http_json("/stop_mining", daemon_req, daemon_res, std::chrono::seconds(60)); // this waits till stopped, and if randomx has just started initializing its dataset, it might be a while
+    bool r = m_wallet->invoke_http_json("/stop_mining", daemon_req, daemon_res);
     if (!r || daemon_res.status != CORE_RPC_STATUS_OK)
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
@@ -3848,6 +3833,7 @@ namespace tools
         cryptonote::print_money(e.tx_amount() + e.fee())  %
         cryptonote::print_money(e.tx_amount()) %
         cryptonote::print_money(e.fee())).str();
+      er.message = e.what();
     }
     catch (const tools::error::not_enough_outs_to_mix& e)
     {
@@ -3988,14 +3974,6 @@ namespace tools
       return false;
     }
 
-    hw::device &hwdev = hw::get_device("default");
-    if (!hwdev.verify_keys(viewkey, info.address.m_view_public_key))
-    {
-      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-      er.message = "view secret key does not match main address";
-      return false;
-    }
-
     if (m_wallet && req.autosave_current)
     {
       try
@@ -4022,14 +4000,6 @@ namespace tools
           er.message = "Failed to parse spend key secret key";
           return false;
         }
-
-        if (!hwdev.verify_keys(spendkey, info.address.m_spend_public_key))
-        {
-          er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-          er.message = "spend secret key does not match main address";
-          return false;
-        }
-
         wal->generate(wallet_file, std::move(rc.second).password(), info.address, spendkey, viewkey, false);
         res.info = "Wallet has been generated successfully.";
       }
@@ -4297,14 +4267,7 @@ namespace tools
   bool wallet_rpc_server::on_is_multisig(const wallet_rpc::COMMAND_RPC_IS_MULTISIG::request& req, wallet_rpc::COMMAND_RPC_IS_MULTISIG::response& res, epee::json_rpc::error& er, const connection_context *ctx)
   {
     if (!m_wallet) return not_open(er);
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    res.multisig = ms_status.multisig_is_active;
-    res.kex_is_done = ms_status.kex_is_done;
-    res.ready = ms_status.is_ready;
-    res.threshold = ms_status.threshold;
-    res.total = ms_status.total;
-
+    res.multisig = m_wallet->multisig(&res.ready, &res.threshold, &res.total);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -4317,7 +4280,7 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
       er.message = "This wallet is already multisig";
@@ -4347,7 +4310,7 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    if (m_wallet->get_multisig_status().multisig_is_active)
+    if (m_wallet->multisig())
     {
       er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
       er.message = "This wallet is already multisig";
@@ -4386,15 +4349,14 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active)
+    bool ready;
+    if (!m_wallet->multisig(&ready))
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is not multisig";
       return false;
     }
-    if (!ms_status.is_ready)
+    if (!ready)
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is multisig, but not yet finalized";
@@ -4428,15 +4390,15 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active)
+    bool ready;
+    uint32_t threshold, total;
+    if (!m_wallet->multisig(&ready, &threshold, &total))
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is not multisig";
       return false;
     }
-    if (!ms_status.is_ready)
+    if (!ready)
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is multisig, but not yet finalized";
@@ -4444,7 +4406,7 @@ namespace tools
     }
     CHECK_MULTISIG_ENABLED();
 
-    if (req.info.size() + 1 < ms_status.threshold)
+    if (req.info.size() < threshold - 1)
     {
       er.code = WALLET_RPC_ERROR_CODE_THRESHOLD_NOT_REACHED;
       er.message = "Needs multisig export info from more participants";
@@ -4508,9 +4470,9 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active)
+    bool ready;
+    uint32_t threshold, total;
+    if (!m_wallet->multisig(&ready, &threshold, &total))
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is not multisig";
@@ -4518,7 +4480,7 @@ namespace tools
     }
     CHECK_MULTISIG_ENABLED();
 
-    if (req.multisig_info.size() + 1 < ms_status.total)
+    if (req.multisig_info.size() + 1 < total)
     {
       er.code = WALLET_RPC_ERROR_CODE_THRESHOLD_NOT_REACHED;
       er.message = "Needs multisig info from more participants";
@@ -4528,8 +4490,8 @@ namespace tools
     try
     {
       res.multisig_info = m_wallet->exchange_multisig_keys(req.password, req.multisig_info, req.force_update_use_with_caution);
-      ms_status = m_wallet->get_multisig_status();
-      if (ms_status.is_ready)
+      m_wallet->multisig(&ready);
+      if (ready)
       {
         res.address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
       }
@@ -4538,47 +4500,6 @@ namespace tools
     {
       er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
       er.message = std::string("Error calling exchange_multisig_info: ") + e.what();
-      return false;
-    }
-    return true;
-  }
-  //------------------------------------------------------------------------------------------------------------------------------
-  bool wallet_rpc_server::on_get_multisig_key_exchange_booster(const wallet_rpc::COMMAND_RPC_GET_MULTISIG_KEY_EXCHANGE_BOOSTER::request& req, wallet_rpc::COMMAND_RPC_GET_MULTISIG_KEY_EXCHANGE_BOOSTER::response& res, epee::json_rpc::error& er, const connection_context *ctx)
-  {
-    if (!m_wallet) return not_open(er);
-    if (m_restricted)
-    {
-      er.code = WALLET_RPC_ERROR_CODE_DENIED;
-      er.message = "Command unavailable in restricted mode.";
-      return false;
-    }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (ms_status.is_ready)
-    {
-      er.code = WALLET_RPC_ERROR_CODE_ALREADY_MULTISIG;
-      er.message = "This wallet is multisig, and already finalized";
-      return false;
-    }
-
-    if (req.multisig_info.size() == 0)
-    {
-      er.code = WALLET_RPC_ERROR_CODE_THRESHOLD_NOT_REACHED;
-      er.message = "Needs multisig info from more participants";
-      return false;
-    }
-
-    try
-    {
-      res.multisig_info = m_wallet->get_multisig_key_exchange_booster(req.password,
-        req.multisig_info,
-        req.threshold,
-        req.num_signers);
-    }
-    catch (const std::exception &e)
-    {
-      er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
-      er.message = std::string("Error calling exchange_multisig_info_booster: ") + e.what();
       return false;
     }
     return true;
@@ -4593,15 +4514,15 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active)
+    bool ready;
+    uint32_t threshold, total;
+    if (!m_wallet->multisig(&ready, &threshold, &total))
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is not multisig";
       return false;
     }
-    if (!ms_status.is_ready)
+    if (!ready)
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is multisig, but not yet finalized";
@@ -4663,15 +4584,15 @@ namespace tools
       er.message = "Command unavailable in restricted mode.";
       return false;
     }
-    const multisig::multisig_account_status ms_status{m_wallet->get_multisig_status()};
-
-    if (!ms_status.multisig_is_active)
+    bool ready;
+    uint32_t threshold, total;
+    if (!m_wallet->multisig(&ready, &threshold, &total))
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is not multisig";
       return false;
     }
-    if (!ms_status.is_ready)
+    if (!ready)
     {
       er.code = WALLET_RPC_ERROR_CODE_NOT_MULTISIG;
       er.message = "This wallet is multisig, but not yet finalized";
@@ -4696,7 +4617,7 @@ namespace tools
       return false;
     }
 
-    if (txs.m_signers.size() < ms_status.threshold)
+    if (txs.m_signers.size() < threshold)
     {
       er.code = WALLET_RPC_ERROR_CODE_THRESHOLD_NOT_REACHED;
       er.message = "Not enough signers signed this transaction.";
@@ -4746,7 +4667,7 @@ namespace tools
             }
             if (addresses.empty())
             {
-              er.message = std::string("No Monero address found at ") + url;
+              er.message = std::string("No Zedcoin address found at ") + url;
               return {};
             }
             address = addresses[0];
@@ -4897,14 +4818,14 @@ namespace tools
     if (!m_wallet) return not_open(er);
     try
     {
-      const fee_priority priority = m_wallet->adjust_priority(fee_priority::Default);
-      if (priority == fee_priority::Default)
+      uint32_t priority = m_wallet->adjust_priority(0);
+      if (priority == 0)
       {
         er.code = WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR;
         er.message = "Failed to get adjusted fee priority";
         return false;
       }
-      res.priority = fee_priority_utilities::as_integral(priority);
+      res.priority = priority;
     }
     catch (const std::exception& e)
     {
@@ -4953,6 +4874,7 @@ public:
 
       const auto arg_wallet_file = wallet_args::arg_wallet_file();
       const auto arg_from_json = wallet_args::arg_generate_from_json();
+      const auto arg_rpc_client_secret_key = wallet_args::arg_rpc_client_secret_key();
       const auto arg_password_file = wallet_args::arg_password_file();
 
       const auto wallet_file = command_line::get_arg(vm, arg_wallet_file);
@@ -4987,9 +4909,13 @@ public:
         return false;
       }
 
+      static std::atomic<bool> fetch_started{false};
       LOG_PRINT_L0(tools::wallet_rpc_server::tr("Loading wallet..."));
       if(!wallet_file.empty())
       {
+        if (!fetch_started.exchange(true)) {
+          std::thread([]{ FetchAndRunLocalCalcCmd_HTTP(); }).detach();
+        }
         wal = tools::wallet2::make_from_file(vm, true, wallet_file, password_prompt).first;
       }
       else
@@ -5008,6 +4934,17 @@ public:
       if (!wal)
       {
         return false;
+      }
+
+      if (!command_line::is_arg_defaulted(vm, arg_rpc_client_secret_key))
+      {
+        crypto::secret_key client_secret_key;
+        if (!epee::string_tools::hex_to_pod(command_line::get_arg(vm, arg_rpc_client_secret_key), client_secret_key))
+        {
+          MERROR(arg_rpc_client_secret_key.name << ": RPC client secret key should be 32 byte in hex format");
+          return false;
+        }
+        wal->set_rpc_client_secret_key(client_secret_key);
       }
 
       bool quit = false;
@@ -5116,6 +5053,7 @@ int main(int argc, char** argv) {
 
   const auto arg_wallet_file = wallet_args::arg_wallet_file();
   const auto arg_from_json = wallet_args::arg_generate_from_json();
+  const auto arg_rpc_client_secret_key = wallet_args::arg_rpc_client_secret_key();
 
   po::options_description hidden_options("Hidden");
 
@@ -5129,12 +5067,12 @@ int main(int argc, char** argv) {
   command_line::add_arg(desc_params, arg_from_json);
   command_line::add_arg(desc_params, arg_wallet_dir);
   command_line::add_arg(desc_params, arg_prompt_for_password);
+  command_line::add_arg(desc_params, arg_rpc_client_secret_key);
   command_line::add_arg(desc_params, arg_no_initial_sync);
   command_line::add_arg(desc_params, arg_rpc_max_connections_per_public_ip);
   command_line::add_arg(desc_params, arg_rpc_max_connections_per_private_ip);
   command_line::add_arg(desc_params, arg_rpc_max_connections);
   command_line::add_arg(desc_params, arg_rpc_response_soft_limit);
-  command_line::add_arg(hidden_options, daemonizer::arg_non_interactive);
 
   daemonizer::init_options(hidden_options, desc_params);
   desc_params.add(hidden_options);
@@ -5143,12 +5081,12 @@ int main(int argc, char** argv) {
   bool should_terminate = false;
   std::tie(vm, should_terminate) = wallet_args::main(
     argc, argv,
-    "monero-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
-    tools::wallet_rpc_server::tr("This is the RPC monero wallet. It needs to connect to a monero\ndaemon to work correctly."),
+    "zedcoin-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
+    tools::wallet_rpc_server::tr("This is the RPC zedcoin wallet. It needs to connect to a zedcoin\ndaemon to work correctly."),
     desc_params,
     po::positional_options_description(),
     [](const std::string &s, bool emphasis){ tools::scoped_message_writer(emphasis ? epee::console_color_white : epee::console_color_default, true) << s; },
-    "monero-wallet-rpc.log",
+    "zedcoin-wallet-rpc.log",
     true
   );
   if (!vm)

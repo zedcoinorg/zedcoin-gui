@@ -1364,7 +1364,7 @@ ApplicationWindow {
             fiatApiError("Invalid ticker value: " + ticker);
             return "?.??";
         }
-        return (amount / ticker).toFixed(12);
+        return (amount / ticker).toFixed(11);
     }
 
     function fiatApiUpdateBalance(balance){
@@ -2369,11 +2369,11 @@ ApplicationWindow {
     function getDefaultDaemonRpcPort(networkType) {
         switch (parseInt(networkType)) {
             case NetworkType.STAGENET:
-                return 38081;
+                return 62314;
             case NetworkType.TESTNET:
-                return 28081;
+                return 58314;
             default:
-                return 18081;
+                return 48314;
         }
     }
 

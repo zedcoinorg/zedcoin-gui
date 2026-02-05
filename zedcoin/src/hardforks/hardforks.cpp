@@ -38,11 +38,11 @@ const hardfork_t mainnet_hard_forks[] = {
   // version 12 (RandomX) from the start of the blockchain (block 1)
   { 12, 1, 0, 1571419280 },
 
-  { 13, 2210000, 0, 1598180817 },
-  { 14, 2210720, 0, 1598180818 },
-
-  { 15, 2688888, 0, 1656629117 },
-  { 16, 2689608, 0, 1656629118 },
+  { 13, 5496, 0, 1700000000 },
+  { 14, 5497, 0, 1700000001 },
+  { 15, 5498, 0, 1700000002 },
+  { 16, 5499, 0, 1700000003 },
+  { 17, 5500, 0, 1700000004 },
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 const uint64_t mainnet_hard_fork_version_1_till = 0;
@@ -54,10 +54,11 @@ const hardfork_t testnet_hard_forks[] = {
   // version 12 (RandomX) from the start of the blockchain (block 1)
   { 12, 1, 0, 1569582000 },
 
-  { 13, 1543939, 0, 1599069376 },
-  { 14, 1544659, 0, 1599069377 },
-  { 15, 1982800, 0, 1652727000 },
-  { 16, 1983520, 0, 1652813400 },
+  { 13, 201, 0, 1700000000 },
+  { 14, 202, 0, 1700000001 },
+  { 15, 203, 0, 1700000002 },
+  { 16, 204, 0, 1700000003 },
+  { 17, 205, 0, 1700000004 },
 };
 const size_t num_testnet_hard_forks = sizeof(testnet_hard_forks) / sizeof(testnet_hard_forks[0]);
 const uint64_t testnet_hard_fork_version_1_till = 0;

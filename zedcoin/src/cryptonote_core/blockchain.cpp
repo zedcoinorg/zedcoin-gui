@@ -87,7 +87,16 @@ DISABLE_VS_WARNINGS(4267)
 #define MERROR_VER(x) MCERROR("verify", x)
 
 // used to overestimate the block reward when estimating a per kB to use
-#define BLOCK_REWARD_OVERESTIMATE (10 * 1000000000000)
+#define BLOCK_REWARD_OVERESTIMATE (10 * COIN)
+
+static uint64_t get_difficulty_target_for_hf(uint8_t version)
+{
+  if (version < 2)
+    return DIFFICULTY_TARGET_V1;
+  if (version < HF_VERSION_ZED_HF1)
+    return DIFFICULTY_TARGET_V2;
+  return DIFFICULTY_TARGET_V3;
+}
 
 //------------------------------------------------------------------
 Blockchain::Blockchain(tx_memory_pool& tx_pool) :
@@ -979,7 +988,8 @@ size_t Blockchain::recalculate_difficulties(boost::optional<uint64_t> start_heig
   std::vector<difficulty_type> new_cumulative_difficulties;
   for (uint64_t height = start_height; height <= top_height; ++height)
   {
-    size_t target = get_ideal_hard_fork_version(height) < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+    const uint8_t hf_version = get_ideal_hard_fork_version(height);
+    size_t target = get_difficulty_target_for_hf(hf_version);
     difficulty_type recalculated_diff = next_difficulty(timestamps, difficulties, target);
 
     boost::multiprecision::uint256_t recalculated_cum_diff_256 = boost::multiprecision::uint256_t(recalculated_diff) + last_cum_diff;
@@ -1282,7 +1292,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   }
 
   // FIXME: This will fail if fork activation heights are subject to voting
-  size_t target = get_ideal_hard_fork_version(bei.height) < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+  const uint8_t hf_version = get_ideal_hard_fork_version(bei.height);
+  size_t target = get_difficulty_target_for_hf(hf_version);
 
   // calculate the difficulty target for the block and return it
   return next_difficulty(timestamps, cumulative_difficulties, target);
@@ -1328,7 +1339,7 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height, 
 }
 //------------------------------------------------------------------
 // This function validates the miner transaction reward
-bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version)
+bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, bool &partial_block_reward, uint8_t version, uint64_t height, uint64_t hf1_height)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   //validate reward
@@ -1357,7 +1368,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     get_last_n_blocks_weights(last_blocks_weights, CRYPTONOTE_REWARD_BLOCKS_WINDOW);
     median_weight = epee::misc_utils::median(last_blocks_weights);
   }
-  if (!get_block_reward(median_weight, cumulative_block_weight, already_generated_coins, base_reward, version))
+  if (!get_block_reward(median_weight, cumulative_block_weight, already_generated_coins, base_reward, version, height, hf1_height))
   {
     MERROR_VER("block weight " << cumulative_block_weight << " is bigger than allowed for this blockchain");
     return false;
@@ -1619,7 +1630,8 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 
   size_t txs_weight;
   uint64_t fee;
-  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version))
+  const uint64_t hf1_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_ZED_HF1);
+  if (!m_tx_pool.fill_block_template(b, median_weight, already_generated_coins, txs_weight, fee, expected_reward, b.major_version, height, hf1_height))
   {
     return false;
   }
@@ -1684,7 +1696,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
   //make blocks coin-base tx looks close to real coinbase tx to get truthful blob weight
   uint8_t hf_version = b.major_version;
   size_t max_outs = hf_version >= 4 ? 1 : 11;
-  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+  bool r = construct_miner_tx(height, median_weight, already_generated_coins, txs_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, hf1_height);
   CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, first chance");
   size_t cumulative_weight = txs_weight + get_transaction_weight(b.miner_tx);
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
@@ -1693,7 +1705,7 @@ bool Blockchain::create_block_template(block& b, const crypto::hash *from_block,
 #endif
   for (size_t try_count = 0; try_count != 10; ++try_count)
   {
-    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version);
+    r = construct_miner_tx(height, median_weight, already_generated_coins, cumulative_weight, fee, miner_address, b.miner_tx, ex_nonce, max_outs, hf_version, hf1_height);
 
     CHECK_AND_ASSERT_MES(r, false, "Failed to construct miner tx, second chance");
     size_t coinbase_weight = get_transaction_weight(b.miner_tx);
@@ -1911,7 +1923,9 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
     bei.height = prev_height + 1;
     uint64_t block_reward = get_outs_money_amount(b.miner_tx);
     const uint64_t prev_generated_coins = alt_chain.size() ? prev_data.already_generated_coins : m_db->get_block_already_generated_coins(prev_height);
-    bei.already_generated_coins = (block_reward < (MONEY_SUPPLY - prev_generated_coins)) ? prev_generated_coins + block_reward : MONEY_SUPPLY;
+    const uint64_t money_supply = cryptonote::get_money_supply(hf_version);
+    const uint64_t remaining = money_supply > prev_generated_coins ? money_supply - prev_generated_coins : 0;
+    bei.already_generated_coins = (block_reward < remaining) ? prev_generated_coins + block_reward : money_supply;
 
     // verify that the block's timestamp is within the acceptable range
     // (not earlier than the median of the last X blocks)
@@ -3674,8 +3688,9 @@ bool Blockchain::check_fee(size_t tx_weight, uint64_t fee) const
   {
     median = m_current_block_cumul_weight_limit / 2;
     const uint64_t blockchain_height = m_db->height();
+    const uint64_t hf1_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_ZED_HF1);
     already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
-    if (!get_block_reward(median, 1, already_generated_coins, base_reward, version))
+    if (!get_block_reward(median, 1, already_generated_coins, base_reward, version, blockchain_height, hf1_height))
       return false;
   }
 
@@ -3756,6 +3771,7 @@ void Blockchain::get_dynamic_base_fee_estimate_2021_scaling(uint64_t grace_block
 {
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t db_height = m_db->height();
+  const uint64_t hf1_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_ZED_HF1);
 
   CHECK_AND_ASSERT_THROW_MES(grace_blocks <= CRYPTONOTE_REWARD_BLOCKS_WINDOW, "Grace blocks invalid In 2021 fee scaling estimate.");
 
@@ -3783,7 +3799,7 @@ void Blockchain::get_dynamic_base_fee_estimate_2021_scaling(uint64_t grace_block
 
   uint64_t already_generated_coins = db_height ? m_db->get_block_already_generated_coins(db_height - 1) : 0;
   uint64_t base_reward;
-  if (!get_block_reward(m_current_block_cumul_weight_limit / 2, 1, already_generated_coins, base_reward, version))
+  if (!get_block_reward(m_current_block_cumul_weight_limit / 2, 1, already_generated_coins, base_reward, version, db_height, hf1_height))
   {
     MERROR("Failed to determine block reward, using placeholder " << print_money(BLOCK_REWARD_OVERESTIMATE) << " as a high bound");
     base_reward = BLOCK_REWARD_OVERESTIMATE;
@@ -3797,6 +3813,7 @@ uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
 {
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t db_height = m_db->height();
+  const uint64_t hf1_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_ZED_HF1);
 
   if (version < HF_VERSION_DYNAMIC_FEE)
     return FEE_PER_KB;
@@ -3824,7 +3841,7 @@ uint64_t Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
 
   uint64_t already_generated_coins = db_height ? m_db->get_block_already_generated_coins(db_height - 1) : 0;
   uint64_t base_reward;
-  if (!get_block_reward(m_current_block_cumul_weight_limit / 2, 1, already_generated_coins, base_reward, version))
+  if (!get_block_reward(m_current_block_cumul_weight_limit / 2, 1, already_generated_coins, base_reward, version, db_height, hf1_height))
   {
     MERROR("Failed to determine block reward, using placeholder " << print_money(BLOCK_REWARD_OVERESTIMATE) << " as a high bound");
     base_reward = BLOCK_REWARD_OVERESTIMATE;
@@ -3857,7 +3874,10 @@ bool Blockchain::is_tx_spendtime_unlocked(uint64_t unlock_time, uint8_t hf_versi
   {
     //interpret as time
     const uint64_t current_time = hf_version >= HF_VERSION_DETERMINISTIC_UNLOCK_TIME ? get_adjusted_time(m_db->height()) : static_cast<uint64_t>(time(NULL));
-    if(current_time + (get_current_hard_fork_version() < 2 ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1 : CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2) >= unlock_time)
+    const uint8_t hf_version = get_current_hard_fork_version();
+    const uint64_t lock_delta_seconds = hf_version < 2 ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1
+      : (hf_version >= HF_VERSION_ZED_HF1 ? CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V3 : CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2);
+    if(current_time + lock_delta_seconds >= unlock_time)
       return true;
     else
       return false;
@@ -3951,11 +3971,12 @@ uint64_t Blockchain::get_adjusted_time(uint64_t height) const
 
   // project the median to match approximately when the block being validated will appear
   // the median is calculated from a chunk of past blocks, so we use +1 to offset onto the current block
-  median_ts += (BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW + 1) * DIFFICULTY_TARGET_V2 / 2;
+  const uint64_t target = get_difficulty_target();
+  median_ts += (BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW + 1) * target / 2;
 
   // project the current block's time based on the previous block's time
   // we don't use the current block's time directly to mitigate timestamp manipulation
-  uint64_t adjusted_current_block_ts = timestamps.back() + DIFFICULTY_TARGET_V2;
+  uint64_t adjusted_current_block_ts = timestamps.back() + target;
 
   // return minimum of ~current block time and adjusted median time
   // we do this since it's better to report a time in the past than a time in the future
@@ -4414,7 +4435,8 @@ leave:
   TIME_MEASURE_START(vmt);
   uint64_t base_reward = 0;
   uint64_t already_generated_coins = blockchain_height ? m_db->get_block_already_generated_coins(blockchain_height - 1) : 0;
-  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_summary, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version()))
+  const uint64_t hf1_height = m_hardfork->get_earliest_ideal_height_for_version(HF_VERSION_ZED_HF1);
+  if(!validate_miner_transaction(bl, cumulative_block_weight, fee_summary, base_reward, already_generated_coins, bvc.m_partial_block_reward, m_hardfork->get_current_version(), blockchain_height, hf1_height))
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
@@ -4433,7 +4455,9 @@ leave:
   // coins will eventually exceed MONEY_SUPPLY and overflow a uint64. To prevent overflow, cap already_generated_coins
   // at MONEY_SUPPLY. already_generated_coins is only used to compute the block subsidy and MONEY_SUPPLY yields a
   // subsidy of 0 under the base formula and therefore the minimum subsidy >0 in the tail state.
-  already_generated_coins = base_reward < (MONEY_SUPPLY-already_generated_coins) ? already_generated_coins + base_reward : MONEY_SUPPLY;
+  const uint64_t money_supply = cryptonote::get_money_supply(m_hardfork->get_current_version());
+  const uint64_t remaining = money_supply > already_generated_coins ? money_supply - already_generated_coins : 0;
+  already_generated_coins = base_reward < remaining ? already_generated_coins + base_reward : money_supply;
   if(blockchain_height)
     cumulative_difficulty += m_db->get_block_cumulative_difficulty(blockchain_height - 1);
 
@@ -5522,7 +5546,7 @@ bool Blockchain::get_hard_fork_voting_info(uint8_t version, uint32_t &window, ui
 
 uint64_t Blockchain::get_difficulty_target() const
 {
-  return get_current_hard_fork_version() < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
+  return get_difficulty_target_for_hf(get_current_hard_fork_version());
 }
 
 std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff, uint64_t min_count) const

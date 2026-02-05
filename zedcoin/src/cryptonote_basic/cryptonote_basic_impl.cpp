@@ -80,13 +80,45 @@ namespace cryptonote {
     return CRYPTONOTE_MAX_TX_SIZE;
   }
   //-----------------------------------------------------------------------------------------------
-  bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version) {
-    static_assert(DIFFICULTY_TARGET_V2%60==0&&DIFFICULTY_TARGET_V1%60==0,"difficulty targets must be a multiple of 60");
+  bool get_block_reward(size_t median_weight, size_t current_block_weight, uint64_t already_generated_coins, uint64_t &reward, uint8_t version, uint64_t height, uint64_t hf1_height) {
+    static_assert(DIFFICULTY_TARGET_V1 % 60 == 0, "difficulty target v1 must be a multiple of 60");
+    static_assert(DIFFICULTY_TARGET_V2 % 60 == 0, "difficulty target v2 must be a multiple of 60");
+
+    if (version >= HF_VERSION_ZED_HF1)
+    {
+      const uint64_t money_supply = cryptonote::get_money_supply(version);
+      const uint64_t tail_reward = (ZED_TAIL_EMISSION_PER_MINUTE * DIFFICULTY_TARGET_V3) / 60;
+      if (already_generated_coins >= money_supply)
+      {
+        reward = tail_reward;
+        return true;
+      }
+
+      uint64_t scheduled_reward = ZED_BLOCK_REWARD_V17_START;
+      if (height > hf1_height)
+      {
+        const uint64_t k = height - hf1_height;
+        if (k >= ZED_EMISSION_DECAY_BLOCKS)
+        {
+          scheduled_reward = ZED_BLOCK_REWARD_V17_END;
+        }
+        else
+        {
+          const __int128 diff = (static_cast<__int128>(ZED_BLOCK_REWARD_V17_START) - static_cast<__int128>(ZED_BLOCK_REWARD_V17_END));
+          scheduled_reward = ZED_BLOCK_REWARD_V17_START - static_cast<uint64_t>(diff * k / ZED_EMISSION_DECAY_BLOCKS);
+        }
+      }
+
+      const uint64_t remaining = money_supply - already_generated_coins;
+      reward = scheduled_reward < remaining ? scheduled_reward : remaining;
+      return true;
+    }
+
     const int target = version < 2 ? DIFFICULTY_TARGET_V1 : DIFFICULTY_TARGET_V2;
     const int target_minutes = target / 60;
     const int emission_speed_factor = EMISSION_SPEED_FACTOR_PER_MINUTE - (target_minutes-1);
 
-    uint64_t base_reward = (MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
+    uint64_t base_reward = (LEGACY_MONEY_SUPPLY - already_generated_coins) >> emission_speed_factor;
     if (base_reward < FINAL_SUBSIDY_PER_MINUTE*target_minutes)
     {
       base_reward = FINAL_SUBSIDY_PER_MINUTE*target_minutes;

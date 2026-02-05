@@ -294,7 +294,7 @@ Rectangle {
                     verticalAlignment: TextInput.AlignVCenter
                     selectByMouse: true
                     color: ZedcoinComponents.Style.defaultFontColor
-                    placeholderText: "0.000000000000"
+                    placeholderText: "0.00000000000"
 
                     background: Rectangle {
                         color: ZedcoinComponents.Style.blackTheme ? "transparent" : "white"
@@ -322,7 +322,7 @@ Rectangle {
                         }
                     }
                     validator: RegExpValidator {
-                        regExp: /^\s*(\d{1,8})?([\.,]\d{1,12})?\s*$/
+                        regExp: /^\s*(\d{1,8})?([\.,]\d{1,11})?\s*$/
                     }
                 }
 

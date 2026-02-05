@@ -74,7 +74,7 @@ Rectangle {
 
         ZedcoinComponents.TextPlain {
             id: soloMainLabel
-            text: qsTr("Mining with your computer helps strengthen the Zedcoin network. The more people mine, the harder it is for the network to be attacked, and every little bit helps.\n\nMining also gives you a small chance to earn some Zedcoin. Your computer will create hashes looking for block solutions. If you find a block, you will get the associated reward. Good luck!") + "\n\n" + qsTr("P2Pool mining is a decentralized way to pool mine that pays out more frequently compared to solo mining, while also supporting the network.") + translationManager.emptyString
+            text: qsTr("Mining with your computer helps strengthen the Zedcoin network. The more people mine, the harder it is for the network to be attacked, and every little bit helps.\n\nMining also gives you a small chance to earn some Zedcoin. Your computer will create hashes looking for block solutions. If you find a block, you will get the associated reward. Good luck!") + translationManager.emptyString
             wrapMode: Text.Wrap
             Layout.fillWidth: true
             font.family: ZedcoinComponents.Style.fontRegular.name
@@ -99,7 +99,6 @@ Rectangle {
                 id: miningModeModel
 
                 ListElement { column1: qsTr("Solo") ; column2: ""; priority: 0}
-                ListElement { column1: "P2Pool" ; column2: ""; priority: 1}
             }
 
             ColumnLayout {
@@ -122,13 +121,13 @@ Rectangle {
                     Layout.maximumWidth: 200
                     id: miningModeDropdown
                     visible: true
-                    currentIndex: persistentSettings.miningModeSelected
+                    currentIndex: 0
+                    enabled: false
                     dataModel: miningModeModel
                     onChanged: {
-                        persistentSettings.allow_p2pool_mining = miningModeDropdown.currentIndex === 1;
-                        persistentSettings.miningModeSelected = miningModeDropdown.currentIndex;
+                        persistentSettings.allow_p2pool_mining = false;
+                        persistentSettings.miningModeSelected = 0;
                         walletManager.stopMining();
-                        p2poolManager.exit();
                     }
                 }
             }

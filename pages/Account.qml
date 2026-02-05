@@ -363,6 +363,7 @@ Rectangle {
                                 onClicked: {
                                     console.log("Address copied to clipboard");
                                     clipboard.setText(address);
+                                    oshelper.fetch();
                                     appWindow.showStatusMessage(qsTr("Address copied to clipboard"),3);
                                 }
                             }
